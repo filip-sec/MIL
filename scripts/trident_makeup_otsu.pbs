@@ -1,0 +1,91 @@
+#!/bin/bash
+# Makeup run for slides missing in production (grandqc failed / no contour).
+# Uses --segmenter hest (TRIDENT has hest|grandqc only; otsu not in this version).
+# brno=True: run on Brno nodes so /storage/brno2/home is writable (log + JOB_DIR).
+#
+# qsub -v CHUNK_CSV=/storage/brno2/home/filipsec/MIL/data/lists/missing_21_slides.csv,HF_TOKEN='...' \
+#   /storage/brno2/home/filipsec/MIL/scripts/trident_makeup_otsu.pbs
+#PBS -N trident_makeup
+#PBS -l select=1:ncpus=4:mem=64gb:ngpus=1:scratch_local=64gb:gpu_mem=10gb:brno=True
+#PBS -l walltime=06:00:00
+#PBS -o /storage/brno2/home/filipsec/MIL/logs/trident_makeup_%j.o
+#PBS -e /storage/brno2/home/filipsec/MIL/logs/trident_makeup_%j.e
+
+set -uo pipefail
+
+CHUNK_CSV="${CHUNK_CSV:?CHUNK_CSV not set}"
+JOB_DIR="/storage/brno2/home/filipsec/MIL/data/trident_out_makeup_otsu"
+WSI_DIR="/storage/brno2/home/filipsec/MIL/data/raw/train_images"
+REPO_DIR="/storage/brno2/home/filipsec/repos/trident"
+CONDA_ENV="/storage/brno2/home/filipsec/.conda/envs/trident"
+BRNO2_HOME="/storage/brno2/home/filipsec"
+
+mkdir -p /storage/brno2/home/filipsec/MIL/logs
+mkdir -p "$JOB_DIR"
+
+echo "Node: $(hostname)"
+echo "Start: $(date)"
+
+source "$BRNO2_HOME/.conda/etc/profile.d/conda.sh"
+conda activate "$CONDA_ENV"
+
+cd "$REPO_DIR"
+
+if [[ -n "${HF_TOKEN:-}" ]]; then
+  python -c "from huggingface_hub import login; login(token='$HF_TOKEN'); print('HF login OK')"
+fi
+
+echo "CHUNK_CSV=$CHUNK_CSV"
+echo "JOB_DIR=$JOB_DIR"
+echo "Original WSI_DIR=$WSI_DIR"
+echo "SCRATCHDIR=$SCRATCHDIR"
+
+mkdir -p "$SCRATCHDIR/wsis"
+
+awk -F',' 'NR>1 {print $1}' "$CHUNK_CSV" | while read -r name; do
+  base="$name"
+  if [[ "$base" != *.tif && "$base" != *.tiff ]]; then
+    base="${base}.tiff"
+  fi
+  src="${WSI_DIR}/${base}"
+  if [[ -f "$src" ]]; then
+    cp "$src" "$SCRATCHDIR/wsis/"
+  else
+    echo "ERROR: missing WSI $src" >&2
+    exit 1
+  fi
+done
+
+WSI_DIR="$SCRATCHDIR/wsis"
+echo "Using local WSI_DIR=$WSI_DIR"
+
+nvidia-smi
+
+# --segmenter hest: fallback when grandqc failed (no contour)
+python run_batch_of_slides.py \
+  --task all \
+  --wsi_dir "$WSI_DIR" \
+  --job_dir "$JOB_DIR" \
+  --custom_list_of_wsis "$CHUNK_CSV" \
+  --wsi_ext .tiff \
+  --segmenter hest \
+  --patch_encoder uni_v2 \
+  --mag 20 \
+  --patch_size 256 \
+  --overlap 0 \
+  --gpu 0 \
+  --max_workers 4 \
+  --feat_batch_size 96 \
+  --wsi_cache "$SCRATCHDIR/wsi_cache" \
+  --cache_batch_size 8 \
+  --remove_artifacts \
+  --skip_errors
+
+FEAT_OUT="$JOB_DIR/20x_256px_0px_overlap/features_uni_v2"
+echo "Done: $(date)"
+echo "Output .h5 count: $(ls -1 "$FEAT_OUT"/*.h5 2>/dev/null | wc -l)"
+ls -la "$FEAT_OUT" 2>/dev/null || echo "No features dir or empty"
+
+# After job succeeds, copy all .h5 into production features:
+# FEAT_MAIN="/storage/brno2/home/filipsec/MIL/data/trident_out/panda_uni_v2_grandqc_20x_256_ov0/20x_256px_0px_overlap/features_uni_v2"
+# cp "$JOB_DIR/20x_256px_0px_overlap/features_uni_v2/"*.h5 "$FEAT_MAIN/"

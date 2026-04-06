@@ -1,0 +1,33 @@
+---
+description: Canonical TRIDENT output paths on MetaCentrum; use these when suggesting commands or editing scripts/docs.
+globs: scripts/**/*.py,scripts/**/*.pbs,docs/**/*.md
+alwaysApply: false
+---
+
+# TRIDENT production paths (MetaCentrum)
+
+When suggesting commands, paths, or editing scripts/docs for the PANDA TRIDENT pipeline, use these **canonical paths** on the cluster.
+
+## Base job dir (production)
+
+```
+/storage/brno2/home/filipsec/MIL/data/trident_out/panda_uni_v2_grandqc_20x_256_ov0
+```
+
+## Key subdirs under that root
+
+TRIDENT writes under `20x_256px_0px_overlap`; **features are inside that dir**, not next to it.
+
+| Path under job root | Purpose |
+|---------------------|--------|
+| `20x_256px_0px_overlap` | Patch coordinates (`*_patches.h5`) |
+| `20x_256px_0px_overlap/features_uni_v2` | Extracted features (`.h5` per slide) |
+
+## Examples
+
+- **Features dir** (for listing/counting .h5 or `find_missing_trident_features.py`):
+  `/storage/brno2/home/filipsec/MIL/data/trident_out/panda_uni_v2_grandqc_20x_256_ov0/20x_256px_0px_overlap/features_uni_v2`
+- **Coords dir**: same root + `20x_256px_0px_overlap`
+- **Chunk CSVs**: `/storage/brno2/home/filipsec/MIL/data/lists/chunks_500/panda_chunk_00X.csv` (absolute paths in `qsub -v CHUNK_CSV=...`)
+
+Use these paths in PBS scripts, Python `--features-dir` / `--chunks`, and doc examples so commands work on the cluster without path edits.

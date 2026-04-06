@@ -1,0 +1,33 @@
+# Local overrides, venv, etc. (add project-specific ignores below)
+
+# OS / editor
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environments
+.venv/
+venv/
+.env
+
+# Project outputs (large / machine-local)
+*.pt
+*.h5
+
+# Local datasets (do not push multi-GB trees)
+data/SICAPv2/
+
+# Secrets (never commit tokens)
+.hf_token
+**/.hf_token

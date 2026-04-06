@@ -1,0 +1,7 @@
+dataset,model,qwk_mean,qwk_std,balanced_accuracy_mean,balanced_accuracy_std,accuracy_mean,accuracy_std,mae_mean,mae_std
+uni2,ordinal,0.9116,0.0027,0.6748,0.0067,0.7287,0.0046,0.3338,0.0040
+uni2,gated,0.8906,0.0045,0.7298,0.0393,0.7759,0.0319,0.3224,0.0297
+virchow2,ordinal,0.9051,0.0068,0.6390,0.0118,0.7026,0.0104,0.3641,0.0165
+virchow2,gated,0.8903,0.0082,0.6962,0.0215,0.7502,0.0131,0.3473,0.0197
+virchow2,attention,0.8424,0.0095,0.5934,0.0241,0.6570,0.0223,0.4970,0.0440
+uni2,attention,0.8906,0.0045,0.7298,0.0393,0.7759,0.0319,0.3224,0.0297

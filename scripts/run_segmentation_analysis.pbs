@@ -1,0 +1,31 @@
+#!/bin/bash
+#PBS -N seg_analysis
+#PBS -l select=1:ncpus=4:mem=32gb:ngpus=1:scratch_local=32gb:gpu_mem=10gb:brno=True
+#PBS -l walltime=4:00:00
+#PBS -o /storage/brno2/home/filipsec/MIL/logs/seg_analysis_%j.o
+#PBS -e /storage/brno2/home/filipsec/MIL/logs/seg_analysis_%j.e
+#
+# Diagnose why 21 slides failed segmentation (grandqc/hest/otsu).
+# Submits a single job; run ~1-2h depending on cluster load.
+#
+# qsub /storage/brno2/home/filipsec/MIL/scripts/run_segmentation_analysis.pbs
+
+set -uo pipefail
+
+MIL="/storage/brno2/home/filipsec/MIL"
+REPO="$MIL/repos/trident"
+WSI_DIR="$MIL/data/raw/train_images"
+
+mkdir -p "$MIL/logs" "$MIL/data/analysis"
+
+source /storage/brno2/home/filipsec/.conda/etc/profile.d/conda.sh
+conda activate trident
+
+cd "$MIL"
+python scripts/analyze_segmentation_failures.py \
+  --missing-csv data/lists/missing_21_slides.csv \
+  --wsi-dir "$WSI_DIR" \
+  --trident-repo "$REPO" \
+  --output data/analysis/segmentation_diagnosis.csv
+
+echo "Done: $(date)"

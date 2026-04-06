@@ -1,0 +1,217 @@
+#!/bin/bash
+#PBS -N mil_train
+# scratch_local: 10gb default; use 100gb when COPY_TO_SCRATCH=1 (override via qsub -l)
+#PBS -l select=1:ncpus=4:mem=128gb:ngpus=1:scratch_local=10gb:gpu_mem=10gb
+#PBS -l walltime=24:00:00
+#
+# Submit from MIL repo on cluster (no wrapper script needed). -V passes your shell env into the job.
+# Required: FEAT_DIR, FEATURE_DIM. Other knobs: MODEL, EPOCHS, PATIENCE, PATCH_DROPOUT, FOLDS, PRELOAD, etc.
+#
+# Example (Virchow2 ordinal, folds 0–2 — adjust paths as needed):
+#   cd /storage/brno2/home/filipsec/MIL
+#   export FEAT_DIR=/storage/brno2/home/filipsec/MIL/data/trident_out/.../features_virchow2
+#   export FEATURE_DIM=2560 MODEL=ordinal EPOCHS=20 PATIENCE=5 PATCH_DROPOUT=0.2 LR=0.001 PRELOAD=1 FOLDS="0 1 2"
+#   qsub -V scripts/mil_training.pbs
+#
+# COPY_TO_SCRATCH=1: request more node scratch on submit (replaces select in this file on MetaCentrum):
+#   export COPY_TO_SCRATCH=1
+#   qsub -V -l "select=1:ncpus=4:mem=128gb:ngpus=1:scratch_local=100gb:gpu_mem=10gb" scripts/mil_training.pbs
+
+set -euo pipefail
+
+MIL="/storage/brno2/home/filipsec/MIL"
+FEAT_DIR="${FEAT_DIR:?Set FEAT_DIR}"
+FEATURE_DIM="${FEATURE_DIM:?Set FEATURE_DIM (UNI2=1536, Virchow2=2560)}"
+COORDS_DIR="${COORDS_DIR:-}"
+MODEL="${MODEL:-gated}"
+EPOCHS="${EPOCHS:-30}"
+PATIENCE="${PATIENCE:-10}"
+PATCH_DROPOUT="${PATCH_DROPOUT:-0.0}"
+BATCH_SIZE="${BATCH_SIZE:-4}"
+TOP_K="${TOP_K:-8}"
+FOLDS="${FOLDS:-}"
+NUM_WORKERS="${NUM_WORKERS:-4}"
+MAX_PATCHES_TRAIN="${MAX_PATCHES_TRAIN:-512}"
+MAX_PATCHES_VAL="${MAX_PATCHES_VAL:-512}"
+LR="${LR:-0.01}"
+WARMUP_EPOCHS="${WARMUP_EPOCHS:-5}"
+CE_WEIGHT="${CE_WEIGHT:-0.3}"
+HIDDEN="${HIDDEN:-}"
+ATTENTION_DIR="${ATTENTION_DIR:-}"
+PRELOAD="${PRELOAD:-}"
+COPY_TO_SCRATCH="${COPY_TO_SCRATCH:-0}"
+RESUME="${RESUME:-}"
+SEED="${SEED:-42}"
+
+TRIDENT_ENV="/storage/brno2/home/filipsec/.conda/envs/trident"
+PYTHON="$TRIDENT_ENV/bin/python"
+
+mkdir -p "$MIL/logs" "$MIL/checkpoints"
+LOGFILE="$MIL/logs/mil_train_${PBS_JOBID:-manual}.log"
+exec > >(stdbuf -oL tee -a "$LOGFILE") 2>&1
+
+timestamp() { date "+%Y-%m-%d %H:%M:%S"; }
+log() { echo "[$(timestamp)] $*"; }
+
+clean_scratch() {
+    log "[CLEANUP] starting"
+    if [[ -n "${SCRATCHDIR:-}" && -d "${SCRATCHDIR:-}" ]]; then
+        find "$SCRATCHDIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} + 2>/dev/null || true
+    fi
+    log "[CLEANUP] done"
+}
+clean_scratch_if_ok() {
+    if [[ "${1:-1}" -eq 0 ]]; then
+        clean_scratch
+    else
+        log "[CLEANUP] skipping (job failed, keeping scratch for debug)"
+    fi
+}
+on_exit() {
+    status=$?
+    if [[ -n "${CKPT_DIR:-}" && -f "$CKPT_DIR/run_meta.txt" ]]; then
+        echo "END_TIME=$(date '+%Y-%m-%d %H:%M:%S')" >> "$CKPT_DIR/run_meta.txt"
+        echo "EXIT_STATUS=$status" >> "$CKPT_DIR/run_meta.txt"
+    fi
+    clean_scratch_if_ok "$status"
+}
+trap on_exit EXIT
+trap 'log "[SIGNAL] TERM received"; exit 143' TERM
+
+# Validation
+[[ -x "$PYTHON" ]] || { log "ERROR: python not found or not executable: $PYTHON"; exit 1; }
+[[ -d "$FEAT_DIR" ]] || { log "ERROR: FEAT_DIR not found: $FEAT_DIR"; exit 1; }
+N_H5=$(find "$FEAT_DIR" -maxdepth 1 -name '*.h5' 2>/dev/null | wc -l)
+log "H5 count in FEAT_DIR: $N_H5"
+[[ "$N_H5" -gt 0 ]] || { log "ERROR: no .h5 files in FEAT_DIR"; exit 1; }
+
+log "PRELOAD=$PRELOAD COPY_TO_SCRATCH=$COPY_TO_SCRATCH"
+
+# TMPDIR: nodes have ~1 GB quota outside scratch; Python/h5py/torch use /tmp by default
+[[ -n "${SCRATCHDIR:-}" && -d "${SCRATCHDIR:-}" ]] && export TMPDIR="$SCRATCHDIR"
+
+# Copy FEAT_DIR to scratch (MetaCentrum: avoid I/O on central storage)
+if [[ "$COPY_TO_SCRATCH" == "1" && -n "${SCRATCHDIR:-}" && -d "${SCRATCHDIR:-}" ]]; then
+    FEAT_SCRATCH="$SCRATCHDIR/features"
+    log "Copying FEAT_DIR to $FEAT_SCRATCH (local SSD)..."
+    t0=$(date +%s)
+    cp -r "$FEAT_DIR" "$FEAT_SCRATCH"
+    FEAT_DIR="$FEAT_SCRATCH"
+    export FEAT_DIR
+    log "Copy done in $(($(date +%s) - t0))s. FEAT_DIR=$FEAT_DIR"
+fi
+
+# Experiment-specific checkpoint dir (override with RUN_NAME)
+SAFE_BASENAME="$(basename "$FEAT_DIR" | tr '/: ' '___')"
+RUN_NAME="${RUN_NAME:-${SAFE_BASENAME}_${MODEL}_e${EPOCHS}_pd${PATCH_DROPOUT}_$(date +%Y%m%d_%H%M%S)}"
+CKPT_DIR="$MIL/checkpoints/$RUN_NAME"
+mkdir -p "$CKPT_DIR"
+log "CKPT_DIR=$CKPT_DIR"
+
+# Metadata file for forensics
+cat > "$CKPT_DIR/run_meta.txt" <<EOF
+RUN_NAME=$RUN_NAME
+FEAT_DIR=$FEAT_DIR
+FEATURE_DIM=$FEATURE_DIM
+COORDS_DIR=${COORDS_DIR:-}
+MODEL=$MODEL
+EPOCHS=$EPOCHS
+PATIENCE=$PATIENCE
+PATCH_DROPOUT=$PATCH_DROPOUT
+BATCH_SIZE=$BATCH_SIZE
+NUM_WORKERS=$NUM_WORKERS
+MAX_PATCHES_TRAIN=$MAX_PATCHES_TRAIN
+MAX_PATCHES_VAL=$MAX_PATCHES_VAL
+LR=$LR
+WARMUP_EPOCHS=$WARMUP_EPOCHS
+CE_WEIGHT=$CE_WEIGHT
+FOLDS=${FOLDS:-all}
+GIT_COMMIT=$(git -C "$MIL" rev-parse HEAD 2>/dev/null || echo N/A)
+START_TIME=$(date "+%Y-%m-%d %H:%M:%S")
+EOF
+
+log "Node: $(hostname)"
+log "PBS_JOBID=${PBS_JOBID:-N/A}"
+log "FEAT_DIR=$FEAT_DIR FEATURE_DIM=$FEATURE_DIM COORDS_DIR=${COORDS_DIR:-}"
+log "MODEL=$MODEL EPOCHS=$EPOCHS PATIENCE=$PATIENCE PATCH_DROPOUT=$PATCH_DROPOUT BATCH_SIZE=$BATCH_SIZE FOLDS=${FOLDS:-all}"
+log "NUM_WORKERS=$NUM_WORKERS MAX_PATCHES_TRAIN=$MAX_PATCHES_TRAIN MAX_PATCHES_VAL=$MAX_PATCHES_VAL"
+log "Git commit: $(git -C "$MIL" rev-parse HEAD 2>/dev/null || echo N/A)"
+log "Git status:"
+git -C "$MIL" status --short 2>/dev/null || true
+git -C "$MIL" diff --stat 2>/dev/null || true
+
+nvidia-smi || true
+
+log "Python: $PYTHON"
+"$PYTHON" --version
+"$PYTHON" - <<'PY'
+import torch
+print("PyTorch:", torch.__version__)
+print("CUDA available:", torch.cuda.is_available())
+if torch.cuda.is_available():
+    print("GPU:", torch.cuda.get_device_name(0))
+PY
+
+export FEAT_DIR FEATURE_DIM
+"$PYTHON" - <<'PY'
+import glob, h5py, os
+feat_dir = os.environ["FEAT_DIR"]
+expected_dim = int(os.environ["FEATURE_DIM"])
+files = sorted(glob.glob(os.path.join(feat_dir, "*.h5")))
+assert files, "No .h5 files found"
+for f in files[:3]:
+    with h5py.File(f, "r") as h:
+        assert "features" in h, f"Missing features in {f}"
+        feats = h["features"]
+        assert feats.ndim == 2, f"features ndim != 2 in {f}"
+        assert feats.shape[0] > 0, f"zero patches in {f}"
+        assert feats.shape[1] == expected_dim, f"features dim {feats.shape[1]} != FEATURE_DIM {expected_dim}"
+        if "coords" in h:
+            coords = h["coords"]
+            assert coords.ndim == 2, f"coords ndim != 2 in {f}"
+            assert coords.shape[0] == feats.shape[0], f"coords/features mismatch in {f}"
+        print("SANITY", os.path.basename(f), feats.shape)
+print("feature sanity OK")
+PY
+
+cd "$MIL"
+"$PYTHON" -c "from mil.train import run_cv; print('mil package OK')"
+
+ARGS=(
+    --feat-dir "$FEAT_DIR"
+    --train-csv "$MIL/data/raw/train.csv"
+    --splits-csv "$MIL/data/splits/panda_5fold_stratified.csv"
+    --model "$MODEL"
+)
+if [[ -n "$COORDS_DIR" ]]; then
+    ARGS+=(--coords-dir "$COORDS_DIR")
+fi
+ARGS+=(
+    --epochs "$EPOCHS"
+    --patience "$PATIENCE"
+    --patch-dropout "$PATCH_DROPOUT"
+    --batch-size "$BATCH_SIZE"
+    --top-k "$TOP_K"
+    --num-workers "$NUM_WORKERS"
+    --max-patches-train "$MAX_PATCHES_TRAIN"
+    --max-patches-val "$MAX_PATCHES_VAL"
+    --lr "$LR"
+    --warmup-epochs "$WARMUP_EPOCHS"
+    --ce-weight "$CE_WEIGHT"
+    --seed "$SEED"
+    --checkpoint-dir "$CKPT_DIR"
+)
+[[ -n "$HIDDEN" ]] && ARGS+=(--hidden "$HIDDEN")
+[[ -n "$ATTENTION_DIR" ]] && ARGS+=(--attention-dir "$ATTENTION_DIR")
+# Only PRELOAD=1 enables RAM cache (PRELOAD=0 must not pass --preload)
+[[ "${PRELOAD:-}" == "1" ]] && ARGS+=(--preload)
+[[ -n "$RESUME" ]] && ARGS+=(--resume "$RESUME")
+if [[ -n "$FOLDS" ]]; then
+    read -r -a FOLD_ARR <<< "${FOLDS//,/ }"
+    ARGS+=(--folds "${FOLD_ARR[@]}")
+fi
+
+log "Run command: $PYTHON scripts/run_training.py ${ARGS[*]}"
+log "Starting training"
+PYTHONUNBUFFERED=1 "$PYTHON" scripts/run_training.py "${ARGS[@]}"
+log "Done: $(date)"

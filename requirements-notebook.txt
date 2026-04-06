@@ -1,0 +1,13 @@
+# For notebooks/mil_workflow.ipynb (WSI load + viz + features)
+# Install in your env: pip install -r requirements-notebook.txt
+
+openslide-python
+scikit-image
+pandas
+numpy
+matplotlib
+Pillow
+h5py
+scikit-learn
+plotly
+torch
