@@ -1,0 +1,102 @@
+#!/bin/bash
+#PBS -N sicap_v2_feats
+#PBS -l select=1:ncpus=4:mem=64gb:ngpus=1:scratch_local=32gb:gpu_mem=10gb
+#PBS -l walltime=12:00:00
+#
+# SICAPv2 pre-cut patch images -> one HDF5 bag per slide via extract_sicap_patch_features.py
+# (Virchow2 default: feat_dim 2560 in features dataset; optional coords [N, 2]).
+#
+# Submit from MIL repo on MetaCentrum:
+#   cd /storage/brno2/home/filipsec/MIL
+#   qsub scripts/sicap_extract_virchow2.pbs
+#
+# Override split / output (recommended for Train or Val):
+#   qsub -v SPLIT_XLSX=/storage/brno2/home/filipsec/MIL/data/SICAPv2/partition/Train/Train.xlsx,FEATURES_OUT=/storage/brno2/home/filipsec/MIL/data/sicap_virchow2_features/train scripts/sicap_extract_virchow2.pbs
+#
+# Optional qsub -v overrides:
+#   SICAP_ROOT, SICAP_IMAGES, SPLIT_XLSX, FEATURES_OUT, HF_TOKEN_FILE, HF_CACHE_DIR
+#   BACKBONE (virchow2|uni2_h|resnet18), BATCH_SIZE, NUM_WORKERS
+#   OVERWRITE=1  -> pass --overwrite
+#   CONDA_ENV    -> path to env with torch, timm, h5py, pandas, openpyxl, Pillow (default: trident)
+#
+# HF token: first line of $MIL/.hf_token unless HF_TOKEN_FILE is set.
+
+set -uo pipefail
+trap 'clean_scratch' TERM EXIT
+
+MIL="/storage/brno2/home/filipsec/MIL"
+BRNO2_HOME="/storage/brno2/home/filipsec"
+SICAP_ROOT="${SICAP_ROOT:-$MIL/data/SICAPv2}"
+SICAP_IMAGES="${SICAP_IMAGES:-$SICAP_ROOT/images}"
+SPLIT_XLSX="${SPLIT_XLSX:-$SICAP_ROOT/partition/Test/Test.xlsx}"
+FEATURES_OUT="${FEATURES_OUT:-$MIL/data/sicap_virchow2_features/test}"
+HF_TOKEN_FILE="${HF_TOKEN_FILE:-$MIL/.hf_token}"
+BATCH_SIZE="${BATCH_SIZE:-64}"
+NUM_WORKERS="${NUM_WORKERS:-4}"
+BACKBONE="${BACKBONE:-virchow2}"
+CONDA_ENV="${CONDA_ENV:-$BRNO2_HOME/.conda/envs/trident}"
+PYTHON="$CONDA_ENV/bin/python"
+EXTRACT_SCRIPT="$MIL/scripts/extract_sicap_patch_features.py"
+
+mkdir -p "$MIL/logs"
+echo "Node: $(hostname)"
+echo "Start: $(date)"
+echo "SICAP_IMAGES=$SICAP_IMAGES"
+echo "SPLIT_XLSX=$SPLIT_XLSX"
+echo "FEATURES_OUT=$FEATURES_OUT"
+echo "BACKBONE=$BACKBONE"
+echo "SCRATCHDIR=${SCRATCHDIR:-}"
+
+if [[ ! -d "$SICAP_IMAGES" ]]; then
+  echo "ERROR: SICAP_IMAGES is not a directory: $SICAP_IMAGES" >&2
+  exit 1
+fi
+if [[ ! -f "$SPLIT_XLSX" ]]; then
+  echo "ERROR: SPLIT_XLSX not found: $SPLIT_XLSX" >&2
+  exit 1
+fi
+if [[ ! -f "$HF_TOKEN_FILE" ]]; then
+  echo "ERROR: HF_TOKEN_FILE not found: $HF_TOKEN_FILE" >&2
+  exit 1
+fi
+if [[ ! -f "$EXTRACT_SCRIPT" ]]; then
+  echo "ERROR: EXTRACT_SCRIPT not found: $EXTRACT_SCRIPT" >&2
+  exit 1
+fi
+
+source "$BRNO2_HOME/.conda/etc/profile.d/conda.sh"
+conda activate "$CONDA_ENV"
+
+mkdir -p "$FEATURES_OUT"
+HF_CACHE_DIR="${HF_CACHE_DIR:-$SCRATCHDIR/hf_hub}"
+mkdir -p "$HF_CACHE_DIR"
+
+if [[ -n "${HF_TOKEN:-}" ]]; then
+  "$PYTHON" -c "from huggingface_hub import login; login(token='$HF_TOKEN'); print('HF login OK')"
+fi
+
+CMD=(
+  "$PYTHON" -u "$EXTRACT_SCRIPT"
+  --images-dir "$SICAP_IMAGES"
+  --split-xlsx "$SPLIT_XLSX"
+  --out-dir "$FEATURES_OUT"
+  --backbone "$BACKBONE"
+  --batch-size "$BATCH_SIZE"
+  --num-workers "$NUM_WORKERS"
+  --hf-token-file "$HF_TOKEN_FILE"
+  --hf-cache-dir "$HF_CACHE_DIR"
+)
+if [[ "${OVERWRITE:-}" == "1" ]]; then
+  CMD+=(--overwrite)
+fi
+
+nvidia-smi || true
+printf 'Running:'
+printf ' %q' "${CMD[@]}"
+echo
+
+"${CMD[@]}"
+status=$?
+
+echo "End: $(date) (exit $status)"
+exit "$status"
