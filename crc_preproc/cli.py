@@ -50,7 +50,7 @@ def main():
                 skip=args.skip_existing,
             )
             total_tiles += saved
-            print(f"[OK] {sid}: {saved} tiles | label={'' if lbl is None else int(lbl)}")
+            print(f"[OK] {sid}: {saved} tiles | label={'' if lbl is None else str(lbl)}")
         except Exception as e:
             print(f"[ERR] {wsi.name}: {e}")
 
