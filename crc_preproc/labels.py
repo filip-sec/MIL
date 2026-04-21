@@ -29,6 +29,5 @@ def build_labels(labels_csv):
         labels_df.dropna(subset=["_key"])
         .drop_duplicates("_key")
         .set_index("_key")[lab_col]
-        .astype("Int64")
         .to_dict()
     )

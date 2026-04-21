@@ -5,7 +5,16 @@ import numpy as np
 
 
 def make_thumbnail(slide, downsample=32):
-    """Generate RGB thumbnail from WSI."""
+    """Generate RGB thumbnail from WSI.
+
+    Args:
+        slide: OpenSlide-compatible slide object.
+        downsample: Thumbnail downsample factor from level-0 dimensions.
+
+    Returns:
+        Tuple ``(thumb_np, thumb_size, slide_size)`` where ``thumb_np`` is an RGB ndarray,
+        ``thumb_size`` is ``(thumb_w, thumb_h)``, and ``slide_size`` is ``(w0, h0)``.
+    """
     width_l0, height_l0 = slide.dimensions
     thumb_size = (max(1, width_l0 // downsample), max(1, height_l0 // downsample))
     thumb_np = np.array(slide.get_thumbnail(thumb_size).convert("RGB"))

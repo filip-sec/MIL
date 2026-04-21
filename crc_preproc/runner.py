@@ -58,11 +58,11 @@ def process_one(
     thumb_dir.mkdir(parents=True, exist_ok=True)
     labels_dir.mkdir(parents=True, exist_ok=True)
     for name, arr in [("thumb_rgb", thumb_rgb), ("thumb_S", s_channel), ("thumb_mask", mask)]:
-        Image.fromarray(arr).save(thumb_dir / f"{slide_id}_{name}.png", optimize=False)
+        Image.fromarray(arr).save(thumb_dir / f"{slide_id}_{name}.png", optimize=True)
 
     overlay = thumb_rgb.copy()
     overlay[mask == 255] = (0.5 * overlay[mask == 255] + 0.5 * np.array([0, 255, 0])).astype(np.uint8)
-    Image.fromarray(overlay).save(thumb_dir / f"{slide_id}_thumb_overlay.png", optimize=False)
+    Image.fromarray(overlay).save(thumb_dir / f"{slide_id}_thumb_overlay.png", optimize=True)
 
     rows, saved = tile_wsi(slide, mask, (tw, th), (w0, h0), tiles_dir / slide_id, slide_id, tile_px, strict)
     slide.close()

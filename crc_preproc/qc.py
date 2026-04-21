@@ -6,6 +6,11 @@ import random
 import numpy as np
 from PIL import Image
 
+try:
+    _BILINEAR = Image.Resampling.BILINEAR
+except AttributeError:  # pragma: no cover - Pillow < 10
+    _BILINEAR = Image.BILINEAR
+
 
 def save_qc(tile_dir, out_png, n=64, size=128):
     """Generate QC montage from random sample of tiles."""
@@ -22,7 +27,7 @@ def save_qc(tile_dir, out_png, n=64, size=128):
     for i, (r, c) in enumerate([(r, c) for r in range(rows) for c in range(cols)][: len(paths)]):
         try:
             canvas.paste(
-                Image.open(paths[i]).convert("RGB").resize((size, size), Image.BILINEAR),
+                Image.open(paths[i]).convert("RGB").resize((size, size), _BILINEAR),
                 (c * size, r * size),
             )
         except Exception:
