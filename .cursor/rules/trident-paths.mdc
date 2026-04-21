@@ -31,3 +31,98 @@ TRIDENT writes under `20x_256px_0px_overlap`; **features are inside that dir**, 
 - **Chunk CSVs**: `/storage/brno2/home/filipsec/MIL/data/lists/chunks_500/panda_chunk_00X.csv` (absolute paths in `qsub -v CHUNK_CSV=...`)
 
 Use these paths in PBS scripts, Python `--features-dir` / `--chunks`, and doc examples so commands work on the cluster without path edits.
+
+Home directory /storage/brno2/home/filipsec/
+Main project folders and notable files:
+
+MIL/                       # active PANDA MIL project (see below)
+repos/                     # cloned repos (TRIDENT, etc.)
+envs/   venvs/  trident-env/  trident-venv/  .conda/
+data/                      # misc external data
+datasets/
+hf_cache/                  # HuggingFace model cache
+wsi_mil/                   # legacy WSI MIL code
+wsi_train_val_test/
+mixed_supervision/         # legacy
+Colorectal_preprocessing/
+idc-comppath-reproducibility/
+ondemand/                  # Jupyter / OnDemand sessions
+scripts/                   # misc helper scripts
+logs/
+.hf_token                  # HF token (UNI2)
+.hf_token_gigapath         # EMPTY
+.hf_token_hoptimus0        # EMPTY
+.hf_token_hoptimus1        # EMPTY
+prostate-cancer-grade-assessment.zip   # 207 GB PANDA Kaggle archive
+pytorch_21_11.sif -> NGC PyTorch singularity image
+Note: .hf_token_gigapath, .hf_token_hoptimus0, .hf_token_hoptimus1 are all 0 bytes — if you're hitting HF 401/403 on those encoders, that's likely why.
+
+MIL/ project root
+MIL/
+├── .cursor/rules/
+├── mil/                              # Python package (model.py, train.py, ...)
+├── mil.egg-info/
+├── scripts/                          # PBS + driver scripts
+├── notebooks/
+├── docs/
+├── analysis/
+├── figures/
+│   ├── attention/
+│   ├── confusion/uni2_gated/
+│   └── heatmap_test/
+├── logs/
+├── weights/
+├── results/sicap_eval/
+├── features/                         # SICAP patch features (non-TRIDENT)
+│   ├── sicap_virchow2_all/
+│   └── sicap_virchow2_test/
+├── attention_cache_fold0/
+│
+├── data/
+│   ├── raw/                          # 384 GB
+│   │   ├── train_images/             # PANDA .tiff WSIs
+│   │   └── train_label_masks/
+│   ├── SICAPv2/
+│   │   ├── images/  masks/
+│   │   └── partition/{Test,Validation}/
+│   ├── splits/                       # panda_5fold_stratified.csv, etc.
+│   ├── lists/
+│   │   ├── chunks/                   # per-encoder chunk CSVs
+│   │   │   ├── gigapath/
+│   │   │   ├── hoptimus0/
+│   │   │   ├── hoptimus1/
+│   │   │   ├── test_hoptimus0/
+│   │   │   └── test_openmidnight/
+│   │   ├── chunks_500/
+│   │   └── singletons/
+│   └── trident_out/
+│       ├── panda_ensemble_grandqc_20x_256_ov0/           # 113 GB (Option B ensemble)
+│       │   ├── 20x_256px_0px_overlap/
+│       │   │   ├── features_uni_v2/
+│       │   │   ├── features_gigapath/
+│       │   │   ├── features_hoptimus0/
+│       │   │   ├── features_openmidnight/
+│       │   │   ├── patches/features_hoptimus0/
+│       │   │   ├── visualization/
+│       │   │   └── 'features_uni_v2 scripts'/   # note: dir name with a space — probably accidental
+│       │   ├── contours/  contours_geojson/  thumbnails/
+│       │   └── (no features_hoptimus1, no features_h0-mini yet)
+│       ├── panda_virchow2_grandqc_20x_224_ov0/           # 85 GB (legacy 224px Virchow2)
+│       │   └── 20x_224px_0px_overlap/
+│       ├── test_coords/
+│       ├── test_coords_grandqc/
+│       └── test_seg_grandqc/
+│
+└── checkpoints/                      # 208 MB total
+    ├── uni2_attention_baseline/      uni2_attention_final/
+    ├── uni2_gated_e50/               uni2_gated_final/
+    ├── uni2_ordinal_e50/             uni2_ordinal_e80_p20/
+    ├── uni2_ordinal_pd03_top16/      uni2_ordinal_final/
+    ├── uni2_hybrid_ordinal_e50/
+    ├── virchow2_attention_final/     virchow2_gated_final/
+    ├── virchow2_ordinal_e50/         virchow2_ordinal_final/
+    ├── virchow2_hybrid_ordinal_e50/
+    ├── features_uni_v2_clam_compare/
+    ├── features_uni_v2_clam_e30_20260408_193748/
+    ├── features_virchow2_ordinal_e20_pd0.2_20260318_112345/
+    └── debug_fold0_e3/
