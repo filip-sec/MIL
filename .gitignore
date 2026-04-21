@@ -27,6 +27,10 @@ venv/
 
 # Local datasets (do not push multi-GB trees)
 data/SICAPv2/
+data/images/
+data/labels/tiles_index.csv
+data/labels/slides_index.csv
+data/labels/*_tiles.csv
 
 # Secrets (never commit tokens)
 .hf_token
