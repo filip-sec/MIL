@@ -18,10 +18,17 @@ dependencies = [
 dev = [
     "ruff>=0.6",
 ]
+preproc = [
+    "pillow>=8.0.0",
+    "opencv-python>=4.5.0",
+    "openslide-python>=1.1.2",
+    "tqdm>=4.60.0",
+    "numba>=0.56.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["mil*"]
+include = ["mil*", "crc_preproc*"]
 
 [tool.ruff]
 line-length = 120

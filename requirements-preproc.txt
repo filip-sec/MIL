@@ -1,0 +1,5 @@
+pillow>=8.0.0
+opencv-python>=4.5.0
+openslide-python>=1.1.2
+tqdm>=4.60.0
+numba>=0.56.0
