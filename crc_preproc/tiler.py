@@ -41,7 +41,7 @@ def tile_wsi(slide, mask_thumb, tw_th, w0_h0, out_dir, slide_id, tile_px=512, st
                         }
                     )
                     saved += 1
-                except Exception:
+                except OSError:
                     pass
 
     return rows, saved

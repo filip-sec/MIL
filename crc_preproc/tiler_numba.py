@@ -9,7 +9,7 @@ try:
     from numba import jit
 
     HAS_NUMBA = True
-except Exception:  # pragma: no cover - optional acceleration only
+except (ImportError, ModuleNotFoundError):  # pragma: no cover - optional acceleration only
     HAS_NUMBA = False
 
 
@@ -70,7 +70,7 @@ def tile_wsi_fast(slide, mask_thumb, tw_th, w0_h0, out_dir, slide_id, tile_px=51
                     }
                 )
                 saved += 1
-            except Exception:
+            except OSError:
                 pass
 
     return rows, saved

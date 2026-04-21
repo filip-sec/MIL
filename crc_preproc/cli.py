@@ -24,7 +24,7 @@ def main():
 
     try:
         from .runner import process_one
-    except Exception as e:
+    except (ImportError, ModuleNotFoundError) as e:
         raise ImportError(
             "WSI preprocessing dependencies are missing. Install with `pip install -e \".[preproc]\"`."
         ) from e
@@ -51,7 +51,7 @@ def main():
             )
             total_tiles += saved
             print(f"[OK] {sid}: {saved} tiles | label={'' if lbl is None else str(lbl)}")
-        except Exception as e:
+        except (ImportError, OSError, ValueError, RuntimeError) as e:
             print(f"[ERR] {wsi.name}: {e}")
 
     labels_dir = out_root / "data" / "labels"

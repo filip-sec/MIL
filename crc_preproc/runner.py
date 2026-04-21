@@ -10,7 +10,7 @@ from .tissue import extract_s_channel, make_thumbnail, otsu_mask
 
 try:
     import openslide
-except Exception as e:  # pragma: no cover - runtime dependency validation
+except (ImportError, ModuleNotFoundError) as e:  # pragma: no cover - runtime dependency validation
     openslide = None
     _OPENSLIDE_IMPORT_ERROR = e
 else:
@@ -18,7 +18,7 @@ else:
 
 try:
     from .tiler_numba import tile_wsi_fast as tile_wsi
-except Exception:
+except ImportError:
     from .tiler import tile_wsi
 
 

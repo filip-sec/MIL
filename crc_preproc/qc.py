@@ -4,7 +4,7 @@ import math
 import random
 
 import numpy as np
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 
 try:
     _BILINEAR = Image.Resampling.BILINEAR
@@ -30,7 +30,7 @@ def save_qc(tile_dir, out_png, n=64, size=128):
                 Image.open(paths[i]).convert("RGB").resize((size, size), _BILINEAR),
                 (c * size, r * size),
             )
-        except Exception:
+        except (OSError, UnidentifiedImageError):
             pass
 
     canvas.save(out_png, optimize=False)
