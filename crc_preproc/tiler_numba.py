@@ -21,7 +21,8 @@ if HAS_NUMBA:
             return False
         if strict:
             return bool(np.min(mask_roi) == 255)
-        return bool(np.mean(mask_roi == 255) >= 0.95)
+        tissue_mask = mask_roi == 255
+        return bool(np.mean(tissue_mask) >= 0.95)
 
 
 def tile_wsi_fast(slide, mask_thumb, tw_th, w0_h0, out_dir, slide_id, tile_px=512, strict=True):

@@ -27,7 +27,10 @@ def tile_wsi(slide, mask_thumb, tw_th, w0_h0, out_dir, slide_id, tile_px=512, st
             )
             roi = mask_thumb[ty0:ty1, tx0:tx1]
 
-            if roi.size and (roi.min() == 255 if strict else (roi == 255).mean() >= 0.95):
+            if roi.size == 0:
+                continue
+            tissue_mask = roi == 255
+            if (tissue_mask.min() if strict else tissue_mask.mean() >= 0.95):
                 try:
                     out_path = out_dir / f"{slide_id}_x{x}_y{y}.png"
                     alpha_to_white(slide.read_region((x, y), 0, (tile_px, tile_px))).save(out_path, optimize=True)
