@@ -11,13 +11,28 @@ PyTorch code for **ISUP grade group** prediction on the **PANDA** challenge usin
 
 Training and evaluation assume **GPU** for reasonable throughput.
 
-## Install
+## Local setup (clean machine)
 
 ```bash
 cd MIL
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+
+# Install PyTorch for your platform (see https://pytorch.org/get-started/locally/).
+# CPU-only quick start:
+pip install torch
+
+# Install this repo (and optionally dev tools).
 pip install -e .
-# Then install PyTorch for your platform, e.g.:
-# pip install torch --index-url https://download.pytorch.org/whl/cu124
+# pip install -e ".[dev]"
+```
+
+Quick verification:
+
+```bash
+python -c "import torch, mil, numpy, pandas, h5py, sklearn; print('ok', torch.__version__)"
+python scripts/run_training.py --help
 ```
 
 ## Data you need locally
