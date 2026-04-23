@@ -5,46 +5,62 @@
 #PBS -l walltime=24:00:00
 #
 # Submit from MIL repo on cluster (no wrapper script needed). -V passes your shell env into the job.
-# Required: FEAT_DIR, FEATURE_DIM. Other knobs: MODEL, EPOCHS, PATIENCE, PATCH_DROPOUT, FOLDS, PRELOAD, etc.
+# Required: FEAT_DIR. FEATURE_DIM is optional when ENCODER is set.
+# Optional: CONFIG=/abs/config.yaml to load YAML defaults before env overrides.
+# Other knobs: ENCODER, MODEL, EPOCHS, PATIENCE, PATCH_DROPOUT, FOLDS, PRELOAD, etc.
 #
-# Example (Virchow2 ordinal, folds 0–2 — adjust paths as needed):
+# Fair comparison recipe (same as historical mil_train_* logs, e.g. gated job 18468804):
 #   cd /storage/brno2/home/filipsec/MIL
-#   export FEAT_DIR=/storage/brno2/home/filipsec/MIL/data/trident_out/.../features_virchow2
-#   export FEATURE_DIM=2560 MODEL=ordinal EPOCHS=20 PATIENCE=5 PATCH_DROPOUT=0.2 LR=0.001 PRELOAD=1 FOLDS="0 1 2"
-#   qsub -V scripts/mil_training.pbs
+#   export COPY_TO_SCRATCH=1 PRELOAD=1
+#   export MODEL=gated                    # or: attention | ordinal | clam
+#   export ENCODER=gigapath               # or: hoptimus0 | hoptimus1 | uni2 | virchow2 | conch
+#   export FEAT_DIR=.../features_virchow2 # or .../features_uni_v2
+#   # FEATURE_DIM is derived from ENCODER when ENCODER is set
+#   export RUN_NAME=my_run_clam           # optional stable checkpoint dir name
+#   export CLAM_INST_WEIGHT=0.7           # only used when MODEL=clam
+#   qsub -V -l "select=1:ncpus=4:mem=128gb:ngpus=1:scratch_local=100gb:gpu_mem=10gb" scripts/mil_training.pbs
+#
+# CLAM on both encoders: two separate qsub (swap FEAT_DIR/FEATURE_DIM each time).
 #
 # COPY_TO_SCRATCH=1: request more node scratch on submit (replaces select in this file on MetaCentrum):
 #   export COPY_TO_SCRATCH=1
-#   qsub -V -l "select=1:ncpus=4:mem=128gb:ngpus=1:scratch_local=100gb:gpu_mem=10gb" scripts/mil_training.pbs
+# qsub -V -l "select=1:ncpus=4:mem=128gb:ngpus=1:scratch_local=100gb:gpu_mem=10gb" scripts/mil_training.pbs
 
 set -euo pipefail
 
 MIL="/storage/brno2/home/filipsec/MIL"
-FEAT_DIR="${FEAT_DIR:?Set FEAT_DIR}"
-FEATURE_DIM="${FEATURE_DIM:?Set FEATURE_DIM (UNI2=1536, Virchow2=2560)}"
+CONFIG="${CONFIG:-}"
+FEAT_DIR="${FEAT_DIR:-}"
+FEATURE_DIM="${FEATURE_DIM:-}"
+ENCODER="${ENCODER:-}"
 COORDS_DIR="${COORDS_DIR:-}"
-MODEL="${MODEL:-gated}"
-EPOCHS="${EPOCHS:-30}"
-PATIENCE="${PATIENCE:-10}"
-PATCH_DROPOUT="${PATCH_DROPOUT:-0.0}"
-BATCH_SIZE="${BATCH_SIZE:-4}"
-TOP_K="${TOP_K:-8}"
+MODEL="${MODEL:-}"
+EPOCHS="${EPOCHS:-}"
+PATIENCE="${PATIENCE:-}"
+PATCH_DROPOUT="${PATCH_DROPOUT:-}"
+BATCH_SIZE="${BATCH_SIZE:-}"
+TOP_K="${TOP_K:-}"
 FOLDS="${FOLDS:-}"
-NUM_WORKERS="${NUM_WORKERS:-4}"
-MAX_PATCHES_TRAIN="${MAX_PATCHES_TRAIN:-512}"
-MAX_PATCHES_VAL="${MAX_PATCHES_VAL:-512}"
-LR="${LR:-0.01}"
-WARMUP_EPOCHS="${WARMUP_EPOCHS:-5}"
-CE_WEIGHT="${CE_WEIGHT:-0.3}"
+NUM_WORKERS="${NUM_WORKERS:-}"
+MAX_PATCHES_TRAIN="${MAX_PATCHES_TRAIN:-}"
+MAX_PATCHES_VAL="${MAX_PATCHES_VAL:-}"
+LR="${LR:-}"
+WARMUP_EPOCHS="${WARMUP_EPOCHS:-}"
+CE_WEIGHT="${CE_WEIGHT:-}"
 HIDDEN="${HIDDEN:-}"
 ATTENTION_DIR="${ATTENTION_DIR:-}"
 PRELOAD="${PRELOAD:-}"
 COPY_TO_SCRATCH="${COPY_TO_SCRATCH:-0}"
 RESUME="${RESUME:-}"
-SEED="${SEED:-42}"
+SEED="${SEED:-}"
+CLAM_INST_WEIGHT="${CLAM_INST_WEIGHT:-}"
+TRAIN_CSV="${TRAIN_CSV:-}"
+SPLITS_CSV="${SPLITS_CSV:-}"
 
 TRIDENT_ENV="/storage/brno2/home/filipsec/.conda/envs/trident"
 PYTHON="$TRIDENT_ENV/bin/python"
+REGISTRY_PY="$MIL/scripts/encoder_registry.py"
+CONFIG_CLI="$MIL/scripts/config_cli.py"
 
 mkdir -p "$MIL/logs" "$MIL/checkpoints"
 LOGFILE="$MIL/logs/mil_train_${PBS_JOBID:-manual}.log"
@@ -80,7 +96,64 @@ trap 'log "[SIGNAL] TERM received"; exit 143' TERM
 
 # Validation
 [[ -x "$PYTHON" ]] || { log "ERROR: python not found or not executable: $PYTHON"; exit 1; }
+[[ -f "$CONFIG_CLI" ]] || { log "ERROR: config helper missing: $CONFIG_CLI"; exit 1; }
+CONFIG_ARGS=()
+if [[ -n "$CONFIG" ]]; then
+    CONFIG_ARGS=(--config "$CONFIG")
+fi
+eval "$("$PYTHON" "$CONFIG_CLI" exports --pipeline mil_training "${CONFIG_ARGS[@]}")"
+if [[ -n "$CONFIG" ]]; then
+    FEAT_DIR="${FEAT_DIR:-${CFG_FEAT_DIR:-}}"
+    FEATURE_DIM="${FEATURE_DIM:-${CFG_FEATURE_DIM:-}}"
+    ENCODER="${ENCODER:-${CFG_ENCODER_NAME:-${CFG_ENCODER:-}}}"
+    COORDS_DIR="${COORDS_DIR:-${CFG_COORDS_DIR:-}}"
+    MODEL="${MODEL:-${CFG_MODEL:-gated}}"
+    EPOCHS="${EPOCHS:-${CFG_EPOCHS:-30}}"
+    PATIENCE="${PATIENCE:-${CFG_PATIENCE:-10}}"
+    PATCH_DROPOUT="${PATCH_DROPOUT:-${CFG_PATCH_DROPOUT:-0.0}}"
+    BATCH_SIZE="${BATCH_SIZE:-${CFG_BATCH_SIZE:-4}}"
+    TOP_K="${TOP_K:-${CFG_TOP_K:-8}}"
+    FOLDS="${FOLDS:-${CFG_FOLDS:-}}"
+    NUM_WORKERS="${NUM_WORKERS:-${CFG_NUM_WORKERS:-4}}"
+    MAX_PATCHES_TRAIN="${MAX_PATCHES_TRAIN:-${CFG_MAX_PATCHES_TRAIN:-512}}"
+    MAX_PATCHES_VAL="${MAX_PATCHES_VAL:-${CFG_MAX_PATCHES_VAL:-512}}"
+    LR="${LR:-${CFG_LR:-0.01}}"
+    WARMUP_EPOCHS="${WARMUP_EPOCHS:-${CFG_WARMUP_EPOCHS:-5}}"
+    CE_WEIGHT="${CE_WEIGHT:-${CFG_CE_WEIGHT:-0.3}}"
+    ATTENTION_DIR="${ATTENTION_DIR:-${CFG_ATTENTION_DIR:-}}"
+    PRELOAD="${PRELOAD:-${CFG_PRELOAD:-}}"
+    RESUME="${RESUME:-${CFG_RESUME:-}}"
+    SEED="${SEED:-${CFG_SEED:-42}}"
+    CLAM_INST_WEIGHT="${CLAM_INST_WEIGHT:-${CFG_CLAM_INST_WEIGHT:-0.7}}"
+    TRAIN_CSV="${TRAIN_CSV:-${CFG_TRAIN_CSV:-$MIL/data/raw/train.csv}}"
+    SPLITS_CSV="${SPLITS_CSV:-${CFG_SPLITS_CSV:-$MIL/data/splits/panda_5fold_stratified.csv}}"
+else
+    MODEL="${MODEL:-gated}"
+    EPOCHS="${EPOCHS:-30}"
+    PATIENCE="${PATIENCE:-10}"
+    PATCH_DROPOUT="${PATCH_DROPOUT:-0.0}"
+    BATCH_SIZE="${BATCH_SIZE:-4}"
+    TOP_K="${TOP_K:-8}"
+    NUM_WORKERS="${NUM_WORKERS:-4}"
+    MAX_PATCHES_TRAIN="${MAX_PATCHES_TRAIN:-512}"
+    MAX_PATCHES_VAL="${MAX_PATCHES_VAL:-512}"
+    LR="${LR:-0.01}"
+    WARMUP_EPOCHS="${WARMUP_EPOCHS:-5}"
+    CE_WEIGHT="${CE_WEIGHT:-0.3}"
+    SEED="${SEED:-42}"
+    CLAM_INST_WEIGHT="${CLAM_INST_WEIGHT:-0.7}"
+    TRAIN_CSV="${TRAIN_CSV:-$MIL/data/raw/train.csv}"
+    SPLITS_CSV="${SPLITS_CSV:-$MIL/data/splits/panda_5fold_stratified.csv}"
+fi
+if [[ -n "$ENCODER" ]]; then
+    [[ -f "$REGISTRY_PY" ]] || { log "ERROR: encoder registry helper missing: $REGISTRY_PY"; exit 1; }
+    eval "$("$PYTHON" "$REGISTRY_PY" exports --encoder "$ENCODER")"
+    ENCODER="$ENCODER_KEY"
+    [[ -n "$FEATURE_DIM" ]] || FEATURE_DIM="$ENCODER_FEATURE_DIM"
+fi
+[[ -n "$FEAT_DIR" ]] || { log "ERROR: Set FEAT_DIR"; exit 1; }
 [[ -d "$FEAT_DIR" ]] || { log "ERROR: FEAT_DIR not found: $FEAT_DIR"; exit 1; }
+[[ -n "$FEATURE_DIM" ]] || { log "ERROR: Set FEATURE_DIM or ENCODER"; exit 1; }
 N_H5=$(find "$FEAT_DIR" -maxdepth 1 -name '*.h5' 2>/dev/null | wc -l)
 log "H5 count in FEAT_DIR: $N_H5"
 [[ "$N_H5" -gt 0 ]] || { log "ERROR: no .h5 files in FEAT_DIR"; exit 1; }
@@ -103,7 +176,8 @@ fi
 
 # Experiment-specific checkpoint dir (override with RUN_NAME)
 SAFE_BASENAME="$(basename "$FEAT_DIR" | tr '/: ' '___')"
-RUN_NAME="${RUN_NAME:-${SAFE_BASENAME}_${MODEL}_e${EPOCHS}_pd${PATCH_DROPOUT}_$(date +%Y%m%d_%H%M%S)}"
+RUN_PREFIX="${ENCODER:-$SAFE_BASENAME}"
+RUN_NAME="${RUN_NAME:-${RUN_PREFIX}_${MODEL}_e${EPOCHS}_pd${PATCH_DROPOUT}_$(date +%Y%m%d_%H%M%S)}"
 CKPT_DIR="$MIL/checkpoints/$RUN_NAME"
 mkdir -p "$CKPT_DIR"
 log "CKPT_DIR=$CKPT_DIR"
@@ -111,8 +185,14 @@ log "CKPT_DIR=$CKPT_DIR"
 # Metadata file for forensics
 cat > "$CKPT_DIR/run_meta.txt" <<EOF
 RUN_NAME=$RUN_NAME
+CONFIG_NAME=${CONFIG_NAME:-}
+CONFIG_PATH=${CONFIG_PATH:-}
 FEAT_DIR=$FEAT_DIR
 FEATURE_DIM=$FEATURE_DIM
+TRAIN_CSV=$TRAIN_CSV
+SPLITS_CSV=$SPLITS_CSV
+ENCODER_NAME=${ENCODER:-}
+ENCODER_REPO_ID=${ENCODER_REPO_ID:-}
 COORDS_DIR=${COORDS_DIR:-}
 MODEL=$MODEL
 EPOCHS=$EPOCHS
@@ -132,7 +212,11 @@ EOF
 
 log "Node: $(hostname)"
 log "PBS_JOBID=${PBS_JOBID:-N/A}"
-log "FEAT_DIR=$FEAT_DIR FEATURE_DIM=$FEATURE_DIM COORDS_DIR=${COORDS_DIR:-}"
+log "CONFIG_NAME=${CONFIG_NAME:-default} CONFIG_PATH=${CONFIG_PATH:-$MIL/configs/pipelines/mil_training.yaml}"
+log "FEAT_DIR=$FEAT_DIR FEATURE_DIM=$FEATURE_DIM ENCODER=${ENCODER:-unknown} COORDS_DIR=${COORDS_DIR:-}"
+if [[ -n "${ENCODER_REPO_ID:-}" ]]; then
+    log "ENCODER_REPO_ID=$ENCODER_REPO_ID"
+fi
 log "MODEL=$MODEL EPOCHS=$EPOCHS PATIENCE=$PATIENCE PATCH_DROPOUT=$PATCH_DROPOUT BATCH_SIZE=$BATCH_SIZE FOLDS=${FOLDS:-all}"
 log "NUM_WORKERS=$NUM_WORKERS MAX_PATCHES_TRAIN=$MAX_PATCHES_TRAIN MAX_PATCHES_VAL=$MAX_PATCHES_VAL"
 log "Git commit: $(git -C "$MIL" rev-parse HEAD 2>/dev/null || echo N/A)"
@@ -179,8 +263,8 @@ cd "$MIL"
 
 ARGS=(
     --feat-dir "$FEAT_DIR"
-    --train-csv "$MIL/data/raw/train.csv"
-    --splits-csv "$MIL/data/splits/panda_5fold_stratified.csv"
+    --train-csv "$TRAIN_CSV"
+    --splits-csv "$SPLITS_CSV"
     --model "$MODEL"
 )
 if [[ -n "$COORDS_DIR" ]]; then
@@ -203,9 +287,12 @@ ARGS+=(
 )
 [[ -n "$HIDDEN" ]] && ARGS+=(--hidden "$HIDDEN")
 [[ -n "$ATTENTION_DIR" ]] && ARGS+=(--attention-dir "$ATTENTION_DIR")
+[[ -n "$ENCODER" ]] && ARGS+=(--encoder-name "$ENCODER")
+[[ -n "$CONFIG" ]] && ARGS+=(--config "$CONFIG")
 # Only PRELOAD=1 enables RAM cache (PRELOAD=0 must not pass --preload)
 [[ "${PRELOAD:-}" == "1" ]] && ARGS+=(--preload)
 [[ -n "$RESUME" ]] && ARGS+=(--resume "$RESUME")
+[[ "${MODEL:-}" == "clam" ]] && ARGS+=(--clam-inst-weight "$CLAM_INST_WEIGHT")
 if [[ -n "$FOLDS" ]]; then
     read -r -a FOLD_ARR <<< "${FOLDS//,/ }"
     ARGS+=(--folds "${FOLD_ARR[@]}")

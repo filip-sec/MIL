@@ -31,3 +31,5 @@ data/SICAPv2/
 # Secrets (never commit tokens)
 .hf_token
 **/.hf_token
+*.hf_token
+**/*.hf_token

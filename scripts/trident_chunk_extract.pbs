@@ -8,23 +8,62 @@ set -uo pipefail
 trap 'clean_scratch' TERM EXIT
 
 CHUNK_CSV="${CHUNK_CSV:?CHUNK_CSV not set}"
-JOB_DIR="/storage/brno2/home/filipsec/MIL/data/trident_out/panda_uni_v2_grandqc_20x_256_ov0"
+ENCODER="${ENCODER:-uni_v2}"
+JOB_DIR="${JOB_DIR:-/storage/brno2/home/filipsec/MIL/data/trident_out/panda_uni_v2_grandqc_20x_256_ov0}"
 WSI_DIR="/storage/brno2/home/filipsec/MIL/data/raw/train_images"
 REPO_DIR="/storage/brno2/home/filipsec/repos/trident"
 CONDA_ENV="/storage/brno2/home/filipsec/.conda/envs/trident"
 BRNO2_HOME="/storage/brno2/home/filipsec"
+MIL_DIR="/storage/brno2/home/filipsec/MIL"
+REGISTRY_PY="$MIL_DIR/scripts/encoder_registry.py"
+PYTHON_BIN="$CONDA_ENV/bin/python"
 
 mkdir -p /storage/brno2/home/filipsec/MIL/logs
 echo "Node: $(hostname)"
 echo "Start: $(date)"
 
-source "$BRNO2_HOME/.conda/etc/profile.d/conda.sh"
-conda activate "$CONDA_ENV"
+CONDA_BASE_CANDIDATES=(
+  "/cvmfs/software.metacentrum.cz/conda/envs/miniforge3-25.3.1-0"
+  "$BRNO2_HOME/.conda"
+)
+for base in "${CONDA_BASE_CANDIDATES[@]}"; do
+  if [[ -f "$base/etc/profile.d/conda.sh" ]]; then
+    source "$base/etc/profile.d/conda.sh"
+    conda activate "$CONDA_ENV"
+    break
+  fi
+done
+if [[ -z "${CONDA_PREFIX:-}" || "$CONDA_PREFIX" != "$CONDA_ENV" ]]; then
+  echo "WARNING: could not 'conda activate $CONDA_ENV'; falling back to PATH injection" >&2
+  export PATH="$CONDA_ENV/bin:$PATH"
+fi
+
+# Resolve HF token via the MIL encoder registry so per-encoder files
+# (e.g. .hf_token_hoptimus0, prov-gigapath.hf_token) are picked up automatically.
+# Falls back to $MIL/.hf_token, then to $HF_TOKEN env var.
+if [[ -z "${HF_TOKEN:-}" ]]; then
+  if [[ -f "$REGISTRY_PY" ]]; then
+    HF_TOKEN="$("$PYTHON_BIN" "$REGISTRY_PY" resolve-token --encoder "$ENCODER" --repo-root "$MIL_DIR" 2>/dev/null || true)"
+  fi
+  if [[ -z "$HF_TOKEN" ]]; then
+    for f in "$MIL_DIR/.hf_token" "$BRNO2_HOME/.hf_token"; do
+      [[ -s "$f" ]] && { HF_TOKEN="$(tr -d '\r\n ' < "$f")"; break; }
+    done
+  fi
+fi
+export HF_TOKEN
 
 cd "$REPO_DIR"
 
 if [[ -n "${HF_TOKEN:-}" ]]; then
-  python -c "from huggingface_hub import login; login(token='$HF_TOKEN'); print('HF login OK')"
+  "$PYTHON_BIN" - <<'PY'
+import os
+from huggingface_hub import login
+login(token=os.environ["HF_TOKEN"])
+print("HF login OK")
+PY
+else
+  echo "WARNING: no HF_TOKEN resolved for encoder=$ENCODER; gated models will fail" >&2
 fi
 
 # Copy WSIs for this chunk to local scratch for faster IO
@@ -61,7 +100,7 @@ python run_batch_of_slides.py \
   --custom_list_of_wsis "$CHUNK_CSV" \
   --wsi_ext .tiff \
   --segmenter grandqc \
-  --patch_encoder uni_v2 \
+  --patch_encoder "$ENCODER" \
   --mag 20 \
   --patch_size 256 \
   --overlap 0 \

@@ -1,0 +1,214 @@
+#!/bin/bash
+#PBS -N trident_feat_only
+#PBS -l select=1:ncpus=4:mem=64gb:ngpus=1:scratch_local=64gb:gpu_mem=10gb
+#PBS -l walltime=12:00:00
+#
+# Feature-only TRIDENT run: reuses existing coords/patches (produced by an earlier
+# segmentation+patching job) and only runs --task feat for a new patch encoder.
+# Canonical use: extract features for each PFM in the Option B ensemble while keeping
+# identical N_patches per slide across encoders.
+#
+# COORDS_DIR is the *subdirectory name* inside $JOB_DIR (TRIDENT does
+# os.path.join(job_dir, coords_dir, 'patches', f'{wsi.name}_patches.h5')), e.g.
+# "20x_256px_0px_overlap" — NOT an absolute path, and NOT ending in /patches.
+#
+# Submit:
+#   qsub -v "CHUNK_CSV=/abs/chunk.csv,ENCODER=hoptimus0,COORDS_DIR=20x_256px_0px_overlap" \
+#        scripts/trident_chunk_extract_feat_only.pbs
+#
+# Optional overrides: CONFIG, JOB_DIR, FEAT_BATCH_SIZE, PATCH_SIZE, LOCALIZE_WSIS.
+# Shared coords are expected under $JOB_DIR/$COORDS_DIR/patches and remain 256px by default.
+# Outputs:
+#   hoptimus0 -> $JOB_DIR/$COORDS_DIR/features_hoptimus0/<slide_id>.h5
+#   hoptimus1 -> $JOB_DIR/$COORDS_DIR/features_hoptimus1/<slide_id>.h5
+#   gigapath  -> $JOB_DIR/$COORDS_DIR/features_gigapath/<slide_id>.h5
+#
+
+set -euo pipefail
+trap 'clean_scratch' TERM EXIT
+
+CONFIG="${CONFIG:-}"
+CHUNK_CSV="${CHUNK_CSV:-}"
+ENCODER="${ENCODER:-}"
+COORDS_DIR="${COORDS_DIR:-}"
+JOB_DIR="${JOB_DIR:-}"
+LOCALIZE_WSIS="${LOCALIZE_WSIS:-}"
+
+MIL_DIR="/storage/brno2/home/filipsec/MIL"
+WSI_DIR="${WSI_DIR:-}"
+REPO_DIR="${REPO_DIR:-}"
+CONDA_ENV="${CONDA_ENV:-}"
+BRNO2_HOME="/storage/brno2/home/filipsec"
+REGISTRY_PY="$MIL_DIR/scripts/encoder_registry.py"
+CONFIG_CLI="$MIL_DIR/scripts/config_cli.py"
+BOOTSTRAP_PYTHON="/storage/brno2/home/filipsec/.conda/envs/trident/bin/python"
+PYTHON_BIN="${PYTHON_BIN:-$BOOTSTRAP_PYTHON}"
+
+mkdir -p /storage/brno2/home/filipsec/MIL/logs
+echo "Node: $(hostname)"
+echo "Start: $(date)"
+
+[[ -x "$BOOTSTRAP_PYTHON" ]] || { echo "ERROR: bootstrap python not found: $BOOTSTRAP_PYTHON" >&2; exit 1; }
+[[ -f "$CONFIG_CLI" ]] || { echo "ERROR: config helper not found: $CONFIG_CLI" >&2; exit 1; }
+CONFIG_ARGS=()
+if [[ -n "$CONFIG" ]]; then
+  CONFIG_ARGS=(--config "$CONFIG")
+fi
+CFG_EXPORTS="$("$BOOTSTRAP_PYTHON" "$CONFIG_CLI" exports --pipeline trident_feat_only_shared_coords "${CONFIG_ARGS[@]}")" \
+  || { echo "ERROR: config_cli exports failed for pipeline trident_feat_only_shared_coords" >&2; exit 1; }
+eval "$CFG_EXPORTS"
+CHUNK_CSV="${CHUNK_CSV:-${CFG_CHUNK_CSV:-}}"
+ENCODER="${ENCODER:-${CFG_ENCODER:-}}"
+COORDS_DIR="${COORDS_DIR:-${CFG_COORDS_DIR:-20x_256px_0px_overlap}}"
+JOB_DIR="${JOB_DIR:-${CFG_JOB_DIR:-/storage/brno2/home/filipsec/MIL/data/trident_out/panda_ensemble_grandqc_20x_256_ov0}}"
+WSI_DIR="${WSI_DIR:-${CFG_WSI_DIR:-/storage/brno2/home/filipsec/MIL/data/raw/train_images}}"
+REPO_DIR="${REPO_DIR:-${CFG_REPO_DIR:-/storage/brno2/home/filipsec/repos/trident}}"
+CONDA_ENV="${CONDA_ENV:-${CFG_CONDA_ENV:-/storage/brno2/home/filipsec/.conda/envs/trident}}"
+PYTHON_BIN="${PYTHON_BIN:-${CFG_PYTHON_BIN:-$BOOTSTRAP_PYTHON}}"
+LOCALIZE_WSIS="${LOCALIZE_WSIS:-${CFG_LOCALIZE_WSIS:-0}}"
+[[ -n "$CHUNK_CSV" ]] || { echo "ERROR: CHUNK_CSV not set" >&2; exit 1; }
+[[ -n "$ENCODER" ]] || { echo "ERROR: ENCODER not set (e.g. hoptimus0, hoptimus1, gigapath)" >&2; exit 1; }
+
+CONDA_BASE_CANDIDATES=(
+  "/cvmfs/software.metacentrum.cz/conda/envs/miniforge3-25.3.1-0"
+  "$BRNO2_HOME/.conda"
+)
+for base in "${CONDA_BASE_CANDIDATES[@]}"; do
+  if [[ -f "$base/etc/profile.d/conda.sh" ]]; then
+    source "$base/etc/profile.d/conda.sh"
+    conda activate "$CONDA_ENV"
+    break
+  fi
+done
+if [[ -z "${CONDA_PREFIX:-}" || "$CONDA_PREFIX" != "$CONDA_ENV" ]]; then
+  echo "WARNING: could not 'conda activate $CONDA_ENV'; falling back to PATH injection" >&2
+  export PATH="$CONDA_ENV/bin:$PATH"
+fi
+
+if [[ ! -f "$REGISTRY_PY" ]]; then
+  echo "ERROR: encoder registry helper not found: $REGISTRY_PY" >&2
+  exit 1
+fi
+
+eval "$("$PYTHON_BIN" "$REGISTRY_PY" exports --encoder "$ENCODER")"
+PATCH_SIZE="${PATCH_SIZE:-${CFG_PATCH_SIZE:-$ENCODER_PATCH_SIZE}}"
+FEAT_BATCH_SIZE="${FEAT_BATCH_SIZE:-${CFG_FEAT_BATCH_SIZE:-$ENCODER_FEAT_BATCH_SIZE}}"
+OUTPUT_FEATURE_DIR="$JOB_DIR/$COORDS_DIR/$ENCODER_FEATURE_DIR_NAME"
+HF_TOKEN="$("$PYTHON_BIN" "$REGISTRY_PY" resolve-token --encoder "$ENCODER_KEY" --repo-root "$MIL_DIR")"
+export HF_TOKEN
+
+"$PYTHON_BIN" "$REGISTRY_PY" check-access --encoder "$ENCODER_KEY" --repo-root "$MIL_DIR"
+
+cd "$REPO_DIR"
+
+if [[ -n "${HF_TOKEN:-}" ]]; then
+  "$PYTHON_BIN" - <<'PY'
+import os
+from huggingface_hub import login
+
+login(token=os.environ["HF_TOKEN"])
+print("HF login OK")
+PY
+fi
+
+echo "CONFIG_NAME=${CONFIG_NAME:-default}"
+echo "CONFIG_PATH=${CONFIG_PATH:-$MIL_DIR/configs/pipelines/trident_feat_only_shared_coords.yaml}"
+echo "CHUNK_CSV=$CHUNK_CSV"
+echo "JOB_DIR=$JOB_DIR"
+echo "COORDS_DIR=$COORDS_DIR (relative to JOB_DIR)"
+echo "ENCODER=$ENCODER_KEY"
+echo "ENCODER_REPO=$ENCODER_REPO_ID"
+echo "ENCODER_FEATURE_DIR=$ENCODER_FEATURE_DIR_NAME"
+echo "ENCODER_TILE_INPUT=$ENCODER_TILE_INPUT"
+if [[ "$ENCODER_NONCOMMERCIAL" == "1" ]]; then
+  echo "NOTE: $ENCODER_DISPLAY_NAME is non-commercial / academic-use only"
+fi
+echo "PATCH_SIZE=$PATCH_SIZE"
+echo "FEAT_BATCH_SIZE=$FEAT_BATCH_SIZE"
+echo "Original WSI_DIR=$WSI_DIR"
+echo "SCRATCHDIR=$SCRATCHDIR"
+echo "LOCALIZE_WSIS=$LOCALIZE_WSIS"
+echo "MAG=${CFG_MAG:-20} OVERLAP=${CFG_OVERLAP:-0} GPU=${CFG_GPU:-0} MAX_WORKERS=${CFG_MAX_WORKERS:-4}"
+
+# --- Validate existing coords/patches ---
+PATCHES_CHECK="$JOB_DIR/$COORDS_DIR/patches"
+if [[ ! -d "$PATCHES_CHECK" ]]; then
+  echo "ERROR: patches dir not found: $PATCHES_CHECK" >&2
+  echo "Hint: COORDS_DIR must be the subdir name (e.g. 20x_256px_0px_overlap), not an absolute path or a path ending in /patches." >&2
+  exit 1
+fi
+COORD_COUNT=$(ls "$PATCHES_CHECK"/*_patches.h5 2>/dev/null | wc -l)
+if [[ "$COORD_COUNT" -eq 0 ]]; then
+  echo "ERROR: no *_patches.h5 files in $PATCHES_CHECK" >&2
+  exit 1
+fi
+echo "Using $COORD_COUNT existing patches files from $PATCHES_CHECK"
+
+# --- Normalize CHUNK_CSV to TRIDENT's expected format ---
+# TRIDENT's collect_valid_slides expects:
+#   - header column named "wsi"
+#   - values that include the file extension (e.g. <id>.tiff)
+# Historical PANDA chunks use "image_id" with bare IDs. Build a normalized copy on
+# scratch so both formats work without editing the chunk files on /storage.
+NORM_CSV="$SCRATCHDIR/chunk_normalized.csv"
+awk -F',' '
+  NR==1 { print "wsi"; next }
+  {
+    v=$1
+    if (v !~ /\.(tif|tiff)$/) v = v ".tiff"
+    print v
+  }
+' "$CHUNK_CSV" > "$NORM_CSV"
+echo "Normalized CSV -> $NORM_CSV ($(wc -l < "$NORM_CSV") lines incl. header)"
+
+if [[ "$LOCALIZE_WSIS" == "1" ]]; then
+  # Copy whole-slide images to node-local scratch only when explicitly requested.
+  mkdir -p "$SCRATCHDIR/wsis"
+  MISSING_COUNT=0
+  STAGED_COUNT=0
+  awk 'NR>1' "$NORM_CSV" | while read -r base; do
+    src="${WSI_DIR}/${base}"
+    if [[ -f "$src" ]]; then
+      cp "$src" "$SCRATCHDIR/wsis/" || true
+    else
+      echo "WARNING: missing WSI $src" >&2
+    fi
+  done
+  STAGED_COUNT=$(ls "$SCRATCHDIR/wsis/" 2>/dev/null | wc -l)
+  echo "Staged $STAGED_COUNT WSIs to $SCRATCHDIR/wsis"
+  if [[ "$STAGED_COUNT" -eq 0 ]]; then
+    echo "ERROR: no WSIs staged — check that CHUNK_CSV values match files in $WSI_DIR" >&2
+    exit 1
+  fi
+
+  WSI_DIR="$SCRATCHDIR/wsis"
+  echo "Using local WSI_DIR=$WSI_DIR"
+else
+  echo "Skipping WSI localization; using shared-storage WSI_DIR=$WSI_DIR"
+fi
+
+nvidia-smi
+
+# --task feat skips segmentation and patching; uses existing coords at
+# $JOB_DIR/$COORDS_DIR/patches/*_patches.h5 and writes features into
+# $JOB_DIR/$COORDS_DIR/features_<ENCODER>/.
+python run_batch_of_slides.py \
+  --task feat \
+  --wsi_dir "$WSI_DIR" \
+  --job_dir "$JOB_DIR" \
+  --coords_dir "$COORDS_DIR" \
+  --custom_list_of_wsis "$NORM_CSV" \
+  --wsi_ext "${CFG_WSI_EXT:-.tiff}" \
+  --patch_encoder "$ENCODER" \
+  --mag "${CFG_MAG:-20}" \
+  --patch_size "$PATCH_SIZE" \
+  --overlap "${CFG_OVERLAP:-0}" \
+  --gpu "${CFG_GPU:-0}" \
+  --max_workers "${CFG_MAX_WORKERS:-4}" \
+  --feat_batch_size "$FEAT_BATCH_SIZE" \
+  --wsi_cache "$SCRATCHDIR/wsi_cache" \
+  --cache_batch_size "${CFG_CACHE_BATCH_SIZE:-8}" \
+  --skip_errors
+
+echo "Done: $(date)"
+echo "Expected output dir: $OUTPUT_FEATURE_DIR"

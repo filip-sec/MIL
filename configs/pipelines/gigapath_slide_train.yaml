@@ -1,0 +1,16 @@
+name: gigapath_slide_train
+pipeline: gigapath_slide_train
+defaults:
+  train_csv: data/raw/train.csv
+  splits_csv: data/splits/panda_5fold_stratified.csv
+  checkpoint_dir: checkpoints/gigapath_slide
+  epochs: 30
+  lr: 0.001
+  weight_decay: 0.0001
+  batch_size: 64
+  num_workers: 0
+  patience: 10
+  dropout: 0.25
+  folds: null
+  seed: 42
+  device: auto

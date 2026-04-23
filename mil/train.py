@@ -14,8 +14,9 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 from .data import CachedBagDataset, collate_bags, preload_features
+from .encoders import infer_encoder_from_feature_dir
 from .loss import OrdinalWithCELoss
-from .model import build_model
+from .model import CLAM_SB, build_model
 from .utils import compute_metrics, load_checkpoint, save_checkpoint, seed_everything
 
 
@@ -26,6 +27,7 @@ def train_one_epoch(
     optimizer: torch.optim.Optimizer,
     device: torch.device,
     is_ordinal: bool = False,
+    clam_inst_weight: float = 0.0,
 ) -> tuple[float, int, int]:
     """Returns (avg_loss, total_patches, n_fully_masked)."""
     model.train()
@@ -39,8 +41,12 @@ def train_one_epoch(
             total_patches += int(n_valid.sum().item())
             n_fully_masked += int((n_valid == 0).sum().item())
         optimizer.zero_grad()
-        output = model(feats, mask)
-        loss = criterion(output, labels)
+        if isinstance(model, CLAM_SB):
+            logits, inst_loss = model(feats, mask, labels=labels)
+            loss = criterion(logits, labels) + clam_inst_weight * inst_loss
+        else:
+            output = model(feats, mask)
+            loss = criterion(output, labels)
         loss.backward()
         optimizer.step()
         total_loss += loss.item()
@@ -103,6 +109,9 @@ def run_fold(
     coord_cache: dict[str, torch.Tensor | None] | None = None,
 ) -> dict:
     model_name = cfg.get("model_name", "attention")
+    encoder_name = cfg.get("encoder_name")
+    config_name = cfg.get("config_name")
+    config_path = cfg.get("config_path")
     hidden = cfg.get("hidden", 256 if model_name != "attention" else 128)
     top_k = cfg.get("top_k", 8)
     epochs = cfg.get("epochs", 10)
@@ -117,6 +126,7 @@ def run_fold(
     checkpoint_dir = Path(cfg.get("checkpoint_dir", "checkpoints"))
 
     is_ordinal = model_name == "ordinal"
+    clam_inst_weight = float(cfg.get("clam_inst_weight", 0.7 if model_name == "clam" else 0.0))
 
     # Datasets: cap reduces RAM, collation time, forward time (biggest perf win)
     train_ds_kw = dict(
@@ -160,9 +170,16 @@ def run_fold(
         flush=True,
     )
 
-    model_kw = {"feat_dim": feat_dim, "num_classes": 6, "hidden": hidden}
-    if model_name == "ordinal":
-        model_kw["top_k"] = top_k
+    if model_name == "clam":
+        model_kw = {
+            "feat_dim": feat_dim,
+            "num_classes": 6,
+            "k_sample": cfg.get("clam_k_sample", top_k),
+        }
+    else:
+        model_kw = {"feat_dim": feat_dim, "num_classes": 6, "hidden": hidden}
+        if model_name == "ordinal":
+            model_kw["top_k"] = top_k
     model = build_model(model_name, **model_kw).to(device)
 
     momentum = cfg.get("momentum", 0.9)
@@ -206,7 +223,13 @@ def run_fold(
         epoch_start = time.perf_counter()
         t0 = time.perf_counter()
         train_loss, train_patches, n_fm_train = train_one_epoch(
-            model, train_loader, criterion, optimizer, device, is_ordinal
+            model,
+            train_loader,
+            criterion,
+            optimizer,
+            device,
+            is_ordinal,
+            clam_inst_weight=clam_inst_weight,
         )
         train_time = time.perf_counter() - t0
         with warnings.catch_warnings():
@@ -246,6 +269,9 @@ def run_fold(
                 metrics,
                 feat_dim=feat_dim,
                 model_name=model_name,
+                encoder_name=encoder_name,
+                config_name=config_name,
+                config_path=config_path,
                 hidden=hidden,
                 top_k=top_k,
                 optimizer=optimizer,
@@ -274,6 +300,10 @@ def run_cv(
 
     train_labels = pd.read_csv(train_csv).set_index("image_id")
     feat_dir = Path(feat_dir)
+    encoder_name = cfg.get("encoder_name") or infer_encoder_from_feature_dir(feat_dir)
+    if encoder_name is not None:
+        print(f"Encoder: {encoder_name}", flush=True)
+        cfg = {**cfg, "encoder_name": encoder_name}
     available_h5 = {p.stem for p in feat_dir.glob("*.h5")}
     print(f"Available .h5 files: {len(available_h5)}", flush=True)
 

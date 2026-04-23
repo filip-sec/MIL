@@ -12,6 +12,7 @@ dependencies = [
     "pandas>=1.4",
     "h5py>=3.7",
     "scikit-learn>=1.1",
+    "PyYAML>=6.0",
 ]
 
 [project.optional-dependencies]

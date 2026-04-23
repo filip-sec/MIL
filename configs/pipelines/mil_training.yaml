@@ -1,0 +1,39 @@
+name: mil_training
+pipeline: mil_training
+defaults:
+  train_csv: data/raw/train.csv
+  splits_csv: data/splits/panda_5fold_stratified.csv
+  model: attention
+  hidden: null
+  epochs: 30
+  lr: 0.01
+  batch_size: 8
+  num_workers: 4
+  warmup_epochs: 5
+  momentum: 0.9
+  weight_decay: 0.0001
+  patience: 0
+  patch_dropout: 0.0
+  max_patches_train: null
+  max_patches_val: null
+  attention_dir: null
+  ce_weight: 0.3
+  top_k: 8
+  clam_inst_weight: 0.7
+  checkpoint_dir: checkpoints
+  resume: null
+  coords_dir: null
+  preload: false
+  max_patches: null
+  folds: null
+  seed: 42
+presets:
+  attention:
+    model: attention
+  gated:
+    model: gated
+  ordinal:
+    model: ordinal
+  clam:
+    model: clam
+    clam_inst_weight: 0.7

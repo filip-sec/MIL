@@ -1,0 +1,68 @@
+name: feature_space_analysis
+pipeline: feature_space_analysis
+defaults:
+  out_dir: results/feature_space_analysis
+  seed: 42
+  min_present_encoders: null
+  per_slide_patch_cap: 512
+  max_total_pairs: 120000
+  use_coords_matching: true
+  pairwise_projection: pca
+  pairwise_projection_dim: 256
+  viz_methods:
+    - pca
+    - umap
+  viz_points: 20000
+  viz_color_by:
+    - slide
+    - label
+  labels_csv: data/raw/train.csv
+  labels_id_col: image_id
+  labels_target_col: isup_grade
+  run_probe: true
+  probe_model: logreg
+  probe_folds: 5
+  run_svcca: true
+  run_alignment: true
+  alignment_train_fraction: 0.8
+  alignment_alpha: 1.0
+  run_spatial: true
+  spatial_k: 5
+  spatial_patch_cap: 256
+  spatial_pair_sample: 2000
+  encoders:
+    - name: uni_v2
+      feat_dir: data/trident_out/panda_uni_v2_grandqc_20x_256_ov0/20x_256px_0px_overlap/features_uni_v2
+      feature_key: features
+      coords_key: coords
+    - name: gigapath
+      feat_dir: data/trident_out/panda_ensemble_grandqc_20x_256_ov0/20x_256px_0px_overlap/features_gigapath
+      feature_key: features
+      coords_key: coords
+    - name: virchow2
+      feat_dir: data/trident_out/panda_virchow2_grandqc_20x_224_ov0/20x_224px_0px_overlap/features_virchow2
+      feature_key: features
+      coords_key: coords
+presets:
+  metacentrum_ensemble:
+    out_dir: /storage/brno2/home/filipsec/MIL/results/feature_space_analysis
+    labels_csv: /storage/brno2/home/filipsec/MIL/data/raw/train.csv
+    per_slide_patch_cap: 512
+    max_total_pairs: 120000
+    encoders:
+      - name: uni_v2
+        feat_dir: /storage/brno2/home/filipsec/MIL/data/trident_out/panda_ensemble_grandqc_20x_256_ov0/20x_256px_0px_overlap/features_uni_v2
+        feature_key: features
+        coords_key: coords
+      - name: gigapath
+        feat_dir: /storage/brno2/home/filipsec/MIL/data/trident_out/panda_ensemble_grandqc_20x_256_ov0/20x_256px_0px_overlap/features_gigapath
+        feature_key: features
+        coords_key: coords
+      - name: hoptimus1
+        feat_dir: /storage/brno2/home/filipsec/MIL/data/trident_out/panda_ensemble_grandqc_20x_256_ov0/20x_256px_0px_overlap/features_hoptimus1
+        feature_key: features
+        coords_key: coords
+      - name: h0-mini
+        feat_dir: /storage/brno2/home/filipsec/MIL/data/trident_out/panda_ensemble_grandqc_20x_256_ov0/20x_256px_0px_overlap/features_h0-mini
+        feature_key: features
+        coords_key: coords

@@ -26,10 +26,12 @@ except ImportError:
 
 try:
     from scipy.ndimage import gaussian_filter
+    from scipy.stats import rankdata
 
     HAS_SCIPY = True
 except ImportError:
     HAS_SCIPY = False
+    rankdata = None  # type: ignore[misc, assignment]
 
 
 def accumulate_attention_on_thumbnail_grid(
@@ -102,6 +104,114 @@ def accumulate_attention_on_thumbnail_grid(
     return grid
 
 
+def patch_union_mask_on_thumbnail_grid(
+    x: np.ndarray,
+    y: np.ndarray,
+    patch_size_l0: int,
+    w0: int,
+    h0: int,
+    tw: int,
+    th: int,
+    *,
+    dilate_iters: int = 0,
+) -> np.ndarray:
+    """Binary mask (float 0/1) covering all patch **squares** in level-0 space, rasterized like ``accumulate_attention_on_thumbnail_grid``.
+
+    Multiplying a blurred heatmap by this mask **clips halo** outside the patch union (sharper edges).
+    """
+    psz = int(patch_size_l0)
+    if psz < 1:
+        raise ValueError("patch_size_l0 must be >= 1")
+    mask = np.zeros((th, tw), dtype=np.float32)
+    w0f, h0f = float(w0), float(h0)
+    twf, thf = float(tw), float(th)
+    xa = np.asarray(x, dtype=np.float64).ravel()
+    ya = np.asarray(y, dtype=np.float64).ravel()
+    for xi, yi in zip(xa, ya):
+        x1, y1 = xi + psz, yi + psz
+        px0 = int(np.floor(xi / w0f * twf))
+        px1 = int(np.ceil(x1 / w0f * twf))
+        py0 = int(np.floor(yi / h0f * thf))
+        py1 = int(np.ceil(y1 / h0f * thf))
+        px0 = int(np.clip(px0, 0, tw))
+        px1 = int(np.clip(px1, 0, tw))
+        py0 = int(np.clip(py0, 0, th))
+        py1 = int(np.clip(py1, 0, th))
+        if px1 <= px0:
+            px1 = min(tw, px0 + 1)
+        if py1 <= py0:
+            py1 = min(th, py0 + 1)
+        if px1 <= px0 or py1 <= py0:
+            continue
+        mask[py0:py1, px0:px1] = 1.0
+    if dilate_iters > 0 and HAS_SCIPY:
+        from scipy.ndimage import binary_dilation
+
+        m = mask > 0.5
+        foot = np.ones((3, 3), dtype=bool)
+        for _ in range(int(dilate_iters)):
+            m = binary_dilation(m, footprint=foot)
+        mask = m.astype(np.float32)
+    return mask
+
+
+def _otsu_threshold_from_hist(hist: np.ndarray) -> int:
+    h = hist.astype(np.float64)
+    total = h.sum()
+    if total < 1:
+        return 127
+    best_t, best_var = 0, -1.0
+    idx = np.arange(256, dtype=np.float64)
+    for t in range(256):
+        w0 = h[: t + 1].sum()
+        w1 = h[t + 1 :].sum()
+        if w0 < 1.0 or w1 < 1.0:
+            continue
+        m0 = (h[: t + 1] * idx[: t + 1]).sum() / w0
+        m1 = (h[t + 1 :] * idx[t + 1 :]).sum() / w1
+        var = w0 * w1 * (m0 - m1) ** 2
+        if var > best_var:
+            best_var, best_t = var, t
+    return int(best_t)
+
+
+def tissue_mask_from_brightness_rgb(
+    rgb: np.ndarray,
+    *,
+    close_iters: int = 4,
+    open_iters: int = 1,
+) -> np.ndarray:
+    """Coarse tissue foreground from H&E: Otsu on luminance + morphology (bright-glass background).
+
+    Heuristic only; fails on uneven illumination or unusual staining. Prefer ``mask_mode='patches'`` for strict footprint clipping.
+    """
+    if not HAS_SCIPY:
+        raise ImportError("tissue mask requires scipy (ndimage)")
+    from scipy.ndimage import binary_closing, binary_opening
+
+    if rgb.ndim != 3 or rgb.shape[2] < 3:
+        raise ValueError("rgb must be HxWx3")
+    g = (
+        0.299 * rgb[..., 0].astype(np.float64)
+        + 0.587 * rgb[..., 1].astype(np.float64)
+        + 0.114 * rgb[..., 2].astype(np.float64)
+    )
+    gray = np.clip(g, 0, 255).astype(np.uint8)
+    hist = np.bincount(gray.ravel(), minlength=256).astype(np.float64)
+    t = _otsu_threshold_from_hist(hist)
+    mu = float(gray.mean())
+    if mu > 160.0:
+        fg = gray.astype(np.float32) < float(t)
+    else:
+        fg = gray.astype(np.float32) > float(t)
+    m = fg.astype(bool)
+    if open_iters > 0:
+        m = binary_opening(m, iterations=int(open_iters))
+    if close_iters > 0:
+        m = binary_closing(m, iterations=int(close_iters))
+    return m.astype(np.float32)
+
+
 def infer_patch_size_l0_from_coords(coord: np.ndarray) -> int | None:
     """Heuristic square patch size in L0 px from a coordinate grid (fallback if attrs missing)."""
     if coord is None or len(coord) < 2:
@@ -123,6 +233,196 @@ def infer_patch_size_l0_from_coords(coord: np.ndarray) -> int | None:
     return max(1, int(round(step)))
 
 
+def postprocess_attention_grid(
+    grid: np.ndarray,
+    tw: int,
+    th: int,
+    *,
+    gaussian_sigma: float | None = None,
+    percentile_low: float = 5.0,
+    percentile_high: float = 99.0,
+    use_percentile_rank: bool = False,
+) -> np.ndarray:
+    """Blur + contrast scaling for rasterized attention (CLAM-style ``drawHeatmap`` conventions).
+
+    Args:
+        grid: 2D non-negative scores (e.g. max attention per thumbnail pixel).
+        tw, th: grid width/height (used for default Gaussian sigma).
+        gaussian_sigma: If ``None``, ``sigma = max(1, min(tw,th) / 128)``. Use ``0`` to skip blur.
+        percentile_low, percentile_high: Inliers for robust min/max when ``use_percentile_rank`` is False.
+        use_percentile_rank: If True, map positive pixels to normalized ranks (spread colormap).
+    """
+    grid = np.asarray(grid, dtype=np.float32)
+    if HAS_SCIPY and np.any(grid > 0) and gaussian_sigma != 0.0:
+        sigma = float(gaussian_sigma) if gaussian_sigma is not None else max(1.0, min(tw, th) / 128.0)
+        if sigma > 0:
+            grid = gaussian_filter(grid, sigma=sigma)
+
+    if use_percentile_rank:
+        if not HAS_SCIPY or rankdata is None:
+            raise ImportError("percentile-rank smoothing requires scipy")
+        flat = grid.ravel().astype(np.float64)
+        pos = flat > 0
+        out = np.zeros_like(flat, dtype=np.float32)
+        if np.any(pos):
+            r = rankdata(flat[pos], method="average").astype(np.float64)
+            out[pos] = ((r - r.min()) / (r.max() - r.min() + 1e-9)).astype(np.float32)
+        return out.reshape(grid.shape)
+
+    grid_vis = grid.astype(np.float32)
+    if np.any(grid_vis > 0):
+        lo, hi = np.percentile(grid_vis[grid_vis > 0], [percentile_low, percentile_high])
+        grid_vis = np.clip((grid_vis - lo) / (hi - lo + 1e-9), 0.0, 1.0)
+    return grid_vis
+
+
+def choose_vis_level_for_max_side(slide: object, max_side: int) -> int:
+    """Pick a pyramid level whose width/height does not exceed ``max_side`` too much."""
+    w0, h0 = slide.level_dimensions[0]
+    need = max(w0, h0) / float(max(512, max_side))
+    if need <= 1.0:
+        return 0
+    return int(slide.get_best_level_for_downsample(need))
+
+
+def blend_heatmap_on_rgb(
+    background_rgb: np.ndarray,
+    heat_norm: np.ndarray,
+    cmap_name: str = "turbo",
+    alpha: float = 0.45,
+) -> np.ndarray:
+    """Alpha-blend colormap(heat) onto ``background_rgb`` (H,W,3 uint8) → uint8 RGB."""
+    if not HAS_MPL:
+        raise ImportError("matplotlib required")
+    bg = np.clip(background_rgb.astype(np.float32), 0, 255)
+    hmap = np.clip(heat_norm.astype(np.float32), 0.0, 1.0)
+    if hasattr(matplotlib, "colormaps"):
+        cmap = matplotlib.colormaps[cmap_name]
+    else:
+        cmap = matplotlib.cm.get_cmap(cmap_name)
+    colored = cmap(hmap)[..., :3].astype(np.float32) * 255.0
+    a = float(np.clip(alpha, 0.0, 1.0))
+    out = bg * (1.0 - a) + colored * a
+    return np.clip(out, 0, 255).astype(np.uint8)
+
+
+def save_fullslide_attention_raster(
+    wsi_path: Path | str,
+    attention: torch.Tensor | np.ndarray,
+    coords: np.ndarray,
+    patch_size_level0: int,
+    out_path: Path | str,
+    *,
+    vis_level: int | None = None,
+    max_side: int = 4096,
+    overlay_agg: str = "max",
+    cmap: str = "turbo",
+    alpha: float = 0.45,
+    gaussian_sigma: float | None = None,
+    percentile_low: float = 5.0,
+    percentile_high: float = 99.5,
+    use_percentile_rank: bool = False,
+    normalize_attention: bool = True,
+    mask_mode: str = "none",
+    patch_mask_dilate: int = 0,
+) -> tuple[int, int, int]:
+    """CLAM-style full-slide heatmap: read WSI at a pyramid level, rasterize attention, blur, save TIFF/PNG.
+
+    Coordinates are **level-0** top-left patch corners; ``patch_size_level0`` is the L0 square side.
+    The accumulation grid matches the chosen level dimensions (same aspect as ``read_region(..., level)``).
+
+    ``mask_mode``: ``none`` | ``patches`` (clip to patch footprint union) | ``tissue`` (Otsu luminance + morphology).
+
+    Returns:
+        ``(vis_level, height, width)`` of the written image.
+    """
+    if not HAS_OPENSLIDE:
+        raise ImportError("openslide required for full-slide raster")
+    try:
+        from PIL import Image
+    except ImportError as e:
+        raise ImportError("Pillow required to save raster; pip install pillow") from e
+
+    wsi_path = Path(wsi_path)
+    if not wsi_path.exists():
+        alt = wsi_path.with_suffix(".tif") if wsi_path.suffix == ".tiff" else wsi_path.with_suffix(".tiff")
+        if alt.exists():
+            wsi_path = alt
+
+    att = np.asarray(attention, dtype=np.float32).ravel()
+    if normalize_attention:
+        att = att / (att.sum() + 1e-9)
+    coord = np.asarray(coords)
+    x, y = coord[:, 0], coord[:, 1]
+    psz = int(patch_size_level0)
+    if psz < 1:
+        raise ValueError("patch_size_level0 must be >= 1")
+
+    slide = openslide.OpenSlide(str(wsi_path))
+    try:
+        w0, h0 = slide.level_dimensions[0]
+        level = int(vis_level) if vis_level is not None else choose_vis_level_for_max_side(slide, max_side)
+        level = max(0, min(level, len(slide.level_dimensions) - 1))
+        w_l, h_l = slide.level_dimensions[level]
+
+        thumb = slide.read_region((0, 0), level, (w_l, h_l))
+        bg = np.array(thumb.convert("RGB"), dtype=np.uint8)
+
+        grid = accumulate_attention_on_thumbnail_grid(
+            x,
+            y,
+            att,
+            patch_size_l0=psz,
+            w0=int(w0),
+            h0=int(h0),
+            tw=int(w_l),
+            th=int(h_l),
+            overlay_agg=overlay_agg,
+        )
+        grid_vis = postprocess_attention_grid(
+            grid,
+            int(w_l),
+            int(h_l),
+            gaussian_sigma=gaussian_sigma,
+            percentile_low=percentile_low,
+            percentile_high=percentile_high,
+            use_percentile_rank=use_percentile_rank,
+        )
+        mm = (mask_mode or "none").strip().lower()
+        if mm == "patches":
+            pm = patch_union_mask_on_thumbnail_grid(
+                x,
+                y,
+                psz,
+                int(w0),
+                int(h0),
+                int(w_l),
+                int(h_l),
+                dilate_iters=patch_mask_dilate,
+            )
+            grid_vis = grid_vis * pm
+        elif mm == "tissue":
+            tm = tissue_mask_from_brightness_rgb(bg)
+            grid_vis = grid_vis * tm
+        elif mm != "none":
+            raise ValueError("mask_mode must be none, patches, or tissue")
+        composite = blend_heatmap_on_rgb(bg, grid_vis, cmap_name=cmap, alpha=alpha)
+
+        out_p = Path(out_path)
+        out_p.parent.mkdir(parents=True, exist_ok=True)
+        if out_p.suffix.lower() not in (".png", ".tif", ".tiff"):
+            out_p = out_p.with_suffix(".png")
+        img = Image.fromarray(composite)
+        if out_p.suffix.lower() in (".tif", ".tiff"):
+            img.save(out_p, compression="tiff_deflate")
+        else:
+            img.save(out_p)
+
+        return level, int(h_l), int(w_l)
+    finally:
+        slide.close()
+
+
 def plot_attention_map(
     attention: torch.Tensor | np.ndarray,
     coords: Optional[torch.Tensor | np.ndarray] = None,
@@ -135,6 +435,12 @@ def plot_attention_map(
     topk_idx: Optional[torch.Tensor | np.ndarray] = None,
     patch_size_level0: Optional[int] = None,
     overlay_agg: str = "max",
+    gaussian_sigma: float | None = None,
+    percentile_low: float = 5.0,
+    percentile_high: float = 99.0,
+    use_percentile_rank: bool = False,
+    mask_mode: str = "none",
+    patch_mask_dilate: int = 0,
 ) -> "matplotlib.axes.Axes":
     """Overlay attention weights on WSI thumbnail as heatmap.
 
@@ -151,6 +457,11 @@ def plot_attention_map(
         patch_size_level0: L0 patch footprint in pixels for **area** heatmap (TRIDENT top-left
             + square side). If None with coords, a median grid step is inferred from coords.
         overlay_agg: ``\"max\"`` or ``\"sum\"`` for overlapping patches on the thumbnail grid
+        gaussian_sigma: Blur sigma after rasterizing (``None`` = auto). ``0`` skips blur.
+        percentile_low, percentile_high: Robust contrast stretch (ignored if ``use_percentile_rank``).
+        use_percentile_rank: Rank-normalize positive pixels (spread colormap; needs scipy).
+        mask_mode: ``none`` | ``patches`` | ``tissue`` — clip heatmap outside patch union or coarse tissue.
+        patch_mask_dilate: Binary dilation iterations on patch-union mask (small halo inside mask).
 
     Returns:
         Matplotlib axes
@@ -206,13 +517,26 @@ def plot_attention_map(
                 th=int(th),
                 overlay_agg=overlay_agg,
             )
-            if HAS_SCIPY and np.any(grid > 0):
-                sigma = max(1.0, min(tw, th) / 128.0)
-                grid = gaussian_filter(grid, sigma=sigma)
-            grid_vis = grid.astype(np.float32)
-            if np.any(grid_vis > 0):
-                lo, hi = np.percentile(grid_vis[grid_vis > 0], [5, 99])
-                grid_vis = np.clip((grid_vis - lo) / (hi - lo + 1e-9), 0, 1)
+            grid_vis = postprocess_attention_grid(
+                grid,
+                int(tw),
+                int(th),
+                gaussian_sigma=gaussian_sigma,
+                percentile_low=percentile_low,
+                percentile_high=percentile_high,
+                use_percentile_rank=use_percentile_rank,
+            )
+            mm = (mask_mode or "none").strip().lower()
+            if mm == "patches" and psz is not None:
+                pm = patch_union_mask_on_thumbnail_grid(
+                    x, y, int(psz), int(w), int(h), int(tw), int(th), dilate_iters=patch_mask_dilate
+                )
+                grid_vis = grid_vis * pm
+            elif mm == "tissue" and thumb_arr is not None:
+                tm = tissue_mask_from_brightness_rgb(thumb_arr[:, :, :3])
+                grid_vis = grid_vis * tm
+            elif mm not in ("none", "patches", "tissue"):
+                raise ValueError("mask_mode must be none, patches, or tissue")
             im = ax.imshow(
                 grid_vis,
                 extent=[0, w, h, 0],
@@ -289,6 +613,70 @@ def get_attention_for_slide(
     if return_topk and topk_idx is not None:
         return att, topk_idx
     return att
+
+
+def get_attention_and_logits_for_slide(
+    model: torch.nn.Module,
+    feats: torch.Tensor,
+    mask: Optional[torch.Tensor] = None,
+    device: Optional[torch.device] = None,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Run MIL/CLAM on one slide; return (attention [N], bag_logits [C]) on CPU.
+
+    ``bag_logits`` are raw classifier outputs before softmax (same as training CE head).
+    """
+    if device is None:
+        device = next(model.parameters()).device
+    model.eval()
+
+    if feats.dim() == 2:
+        feats = feats.unsqueeze(0)
+    if mask is not None and mask.dim() == 1:
+        mask = mask.unsqueeze(0)
+
+    feats = feats.to(device)
+    if mask is not None:
+        mask = mask.to(device)
+
+    with torch.no_grad():
+        out = model(feats, mask, return_attention=True)
+        if isinstance(out, tuple):
+            logits_bag, att = out[0], out[1]
+            logits_vec = logits_bag[0].detach().float().cpu()
+        elif isinstance(out, dict):
+            att = out["attention"]
+            if "ce_logits" in out:
+                logits_vec = out["ce_logits"][0].detach().float().cpu()
+            elif "ordinal_logits" in out:
+                logits_vec = out["ordinal_logits"][0].detach().float().cpu()
+            else:
+                raise ValueError("Model dict output missing ce_logits / ordinal_logits")
+        else:
+            raise ValueError("Model must support return_attention=True")
+
+    att = att[0].cpu().float()
+    if mask is not None:
+        att = att.masked_fill(~mask[0].cpu(), 0.0)
+    return att, logits_vec
+
+
+def save_attention_blockmap_h5(
+    path: Path | str,
+    attention: torch.Tensor | np.ndarray,
+    coords: np.ndarray,
+) -> None:
+    """Write CLAM-style blockmap HDF5: ``attention_scores`` [N,1], ``coords`` [N, 2+]."""
+    import h5py
+
+    att = np.asarray(attention, dtype=np.float32).reshape(-1, 1)
+    xy = np.asarray(coords)
+    if xy.shape[0] != att.shape[0]:
+        raise ValueError(f"attention length {att.shape[0]} != coords rows {xy.shape[0]}")
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with h5py.File(path, "w") as f:
+        f.create_dataset("attention_scores", data=att)
+        f.create_dataset("coords", data=xy)
 
 
 def read_trident_coord_attrs_from_h5(h5_path: Path | str) -> dict:

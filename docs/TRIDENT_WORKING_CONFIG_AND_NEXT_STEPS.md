@@ -22,54 +22,24 @@
 | **GPU** | Required for `seg` and `feat` (use `--gpu 0` on 1-GPU job) |
 | **Output format** | `.h5` (features under `20x_256px_0px_overlap/features_uni_v2/`) |
 
-**Missing slide (chunks 000+001):** `163fabe883fcd17de4f899ca8ede45a8`. Cause: grandqc reported "No contour were detected" (QC false negative; slide has tissue). Fix: **one-slide rerun without grandqc** into a separate job_dir, then copy the resulting `.h5` into production features.
+**Missing slide (chunks 000+001):** `163fabe883fcd17de4f899ca8ede45a8`. Cause: grandqc reported "No contour were detected" (QC false negative; slide has tissue). Fix: rerun **one slide** with a fallback segmenter (e.g. `hest`) into a **separate** `job_dir`, then copy the `.h5` into production features.
 
 - Singleton list: `data/lists/singletons/163fabe883fcd17de4f899ca8ede45a8.csv` (column `wsi`, value `163fabe883fcd17de4f899ca8ede45a8.tiff`).
-- PBS script: `scripts/trident_single_extract_noqc.pbs` (no `--segmenter grandqc`; `JOB_DIR=.../trident_out_single/163fabe883fcd17de4f899ca8ede45a8_noqc`).
+- Easiest path: copy `scripts/trident_chunk_extract.pbs` (or run interactively on a GPU node), set `JOB_DIR` to a new directory (e.g. `.../trident_out_single/163fabe883fcd17de4f899ca8ede45a8_hest`), set `CHUNK_CSV` to that singleton CSV, and in the `run_batch_of_slides.py` invocation replace `--segmenter grandqc` with `--segmenter hest` (matching the production patch encoder / mag / patch size / overlap).
 
-**Run on cluster:**
-```bash
-mkdir -p /storage/brno2/home/filipsec/MIL/data/lists/singletons
-# CSV already in repo: data/lists/singletons/163fabe883fcd17de4f899ca8ede45a8.csv
-# HF token in gitignored .hf_token (create on cluster if needed: echo 'your_token' > .hf_token)
-
-qsub -v CHUNK_CSV=/storage/brno2/home/filipsec/MIL/data/lists/singletons/163fabe883fcd17de4f899ca8ede45a8.csv,HF_TOKEN="$(cat /storage/brno2/home/filipsec/MIL/.hf_token)" \
-  /storage/brno2/home/filipsec/MIL/scripts/trident_single_extract_noqc.pbs
-```
-
-**After job succeeds**, copy the `.h5` into production features:
+**After job succeeds**, copy the `.h5` into production features (adjust paths to match your `JOB_DIR`):
 ```bash
 FEAT_MAIN="/storage/brno2/home/filipsec/MIL/data/trident_out/panda_uni_v2_grandqc_20x_256_ov0/20x_256px_0px_overlap/features_uni_v2"
-cp /storage/brno2/home/filipsec/MIL/data/trident_out_single/163fabe883fcd17de4f899ca8ede45a8_noqc/20x_256px_0px_overlap/features_uni_v2/163fabe883fcd17de4f899ca8ede45a8.h5 "$FEAT_MAIN/"
+cp "$JOB_DIR/20x_256px_0px_overlap/features_uni_v2/163fabe883fcd17de4f899ca8ede45a8.h5" "$FEAT_MAIN/"
 ```
 
 **HF token:** Required for UNI2 (gated repo). Run `login(token='...')` in the same session before `run_batch_of_slides.py` on any node (including GPU nodes).
 
 ---
 
-## 1b. Analyzing 21 missing slides (grandqc/hest/otsu)
+## 1b. Missing slides and logs
 
-The 21 slides in `data/lists/missing_21_slides.csv` failed segmentation in both UNI2 and Virchow2 production runs (grandqc). To diagnose why no segmenter (grandqc, hest, otsu) succeeded:
-
-**Quick scan (no GPU):** Search existing TRIDENT logs for error snippets:
-```bash
-cd /storage/brno2/home/filipsec/MIL
-python scripts/analyze_segmentation_failures.py \
-  --missing-csv data/lists/missing_21_slides.csv --scan-logs
-```
-Output: `data/analysis/segmentation_log_scan.csv`
-
-**Full diagnostic:** Run TRIDENT `--task seg` for each slide × each segmenter (grandqc, hest, otsu):
-```bash
-qsub scripts/run_segmentation_analysis.pbs
-# or interactively (2h GPU session):
-python scripts/analyze_segmentation_failures.py \
-  --missing-csv data/lists/missing_21_slides.csv \
-  --output data/analysis/segmentation_diagnosis.csv
-```
-Output: `data/analysis/segmentation_diagnosis.csv` with columns `grandqc_ok`, `hest_ok`, `otsu_ok` and error notes per slide.
-
-**Interpretation:** If `hest_ok` or `otsu_ok` = yes but grandqc failed → use hest/otsu for makeup. If all fail → WSI may be corrupted, unusual format, or need manual inspection.
+For slides that never produced features, grep your existing TRIDENT job logs under `logs/` for the slide id or errors like `No contour`. For systematic gap checks vs `train.csv`, use `python scripts/find_missing_trident_features.py --features-dir ...`.
 
 ---
 
@@ -162,12 +132,37 @@ print(pd.crosstab(df['fold'], df['isup_grade']))
 
 Planned: PBS script for production extraction (chunked, resumable), using the production root and full slide list derived from `train.csv` / folds.
 
+## 4b. Shared-coords encoder sweep (H-optimus / GigaPath)
+
+For encoder comparisons where you want the **same patch set per slide**, do **not** re-tile the WSI for each encoder by default.
+
+Use the feature-only workflow:
+
+- Existing coords source: `20x_256px_0px_overlap/patches`
+- Script: [scripts/trident_chunk_extract_feat_only.pbs](/Users/fs/Desktop/MIL/scripts/trident_chunk_extract_feat_only.pbs)
+- Supported encoder keys: `hoptimus0`, `hoptimus1`, `gigapath`
+- Standard outputs:
+  - `features_hoptimus0`
+  - `features_hoptimus1`
+  - `features_gigapath`
+
+Example:
+
+```bash
+cd /storage/brno2/home/filipsec/MIL
+qsub -v "CHUNK_CSV=/abs/panda_chunk_000.csv,ENCODER=hoptimus1,COORDS_DIR=20x_256px_0px_overlap" \
+  scripts/trident_chunk_extract_feat_only.pbs
+```
+
+The script now resolves encoder metadata from the shared registry, looks up encoder-specific token files in the repo root, falls back to `.hf_token`, then to `HF_TOKEN`, and fails before the TRIDENT run if Hugging Face access is not valid.
+
 ---
 
 ## 5. After extraction: MIL training
 
 - Use extracted bags (e.g. `.h5` or exported `.pt`) and the fold CSV.
 - Train MIL (e.g. attention-based) with stratified train/val per fold; report validation AUC; early stopping; save best model by val AUC.
+- If you set `ENCODER=...` in `scripts/mil_training.pbs`, `FEATURE_DIM` is derived from the registry and checkpoints store `encoder_name`.
 
 ---
 

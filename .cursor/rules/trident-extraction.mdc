@@ -1,0 +1,184 @@
+---
+description: "TRIDENT feature extraction for PANDA WSIs on MetaCentrum PBS — chunked jobs, local scratch staging, HF-gated encoders, GrandQC segmentation."
+globs: "scripts/**,docs/TRIDENT*,*.pbs"
+alwaysApply: true
+---
+
+# TRIDENT feature extraction — PANDA on MetaCentrum
+
+Rules for the offline feature-extraction pipeline that produces the `.h5` files consumed by the MIL model. Apply when editing PBS scripts, chunk generators, or any code under `scripts/` related to TRIDENT.
+
+## Environment (MetaCentrum)
+
+- **Scheduler:** PBS Pro. Jobs submitted with `qsub`.
+- **User home:** `/storage/brno2/home/filipsec` (referred to as `$BRNO2_HOME`).
+- **Project root:** `/storage/brno2/home/filipsec/MIL`.
+- **WSI source:** `/storage/brno2/home/filipsec/MIL/data/raw/train_images` (PANDA `.tiff`).
+- **TRIDENT repo:** `/storage/brno2/home/filipsec/repos/trident`. Entry point: `run_batch_of_slides.py`.
+- **Conda env:** `/storage/brno2/home/filipsec/.conda/envs/trident`. Activate via `source "$BRNO2_HOME/.conda/etc/profile.d/conda.sh" && conda activate "$CONDA_ENV"`.
+- **Logs:** write to `/storage/brno2/home/filipsec/MIL/logs` (ensure `mkdir -p` in the script).
+- **Scratch:** always use `$SCRATCHDIR` for WSI staging and caches. `trap 'clean_scratch' TERM EXIT` at the top of every PBS script.
+
+## Output layout
+
+All TRIDENT outputs go to:
+```
+MIL/data/trident_out/panda_<encoder>_<segmenter>_<mag>x_<patch>_ov<overlap>/
+  └── 20x_256px_0px_overlap/features_<encoder>/<slide_id>.h5
+```
+Current production path:
+`MIL/data/trident_out/panda_uni_v2_grandqc_20x_256_ov0/20x_256px_0px_overlap/features_uni_v2/`.
+
+Fallback for slides that fail GrandQC ("No contour" false negatives):
+`MIL/data/trident_out_makeup_otsu/...` — same subtree, `segmenter=otsu`, no `grandqc`. Copy successful `.h5` files into the main `features_<encoder>/` dir after extraction so the MIL loader only needs one path.
+
+For Option B (six-PFM ensemble) there are six parallel output trees, one per encoder:
+`features_uni_v2`, `features_gigapath`, `features_hoptimus0`, `features_hoptimus1`, `features_h0-mini`, `features_openmidnight`. Each `.h5` holds key `features` with shape `(N_patches, 1536)` — same `N_patches` across encoders for the same slide (same segmenter + patching config).
+
+## PBS job anatomy (canonical shape)
+
+Standard header for a TRIDENT job:
+```bash
+#PBS -N trident_<tag>
+#PBS -l select=1:ncpus=4:mem=64gb:ngpus=1:scratch_local=64gb:gpu_mem=10gb
+#PBS -l walltime=12:00:00
+set -uo pipefail
+trap 'clean_scratch' TERM EXIT
+```
+Defaults — do not change without reason:
+- `ncpus=4`, `mem=64gb`, `ngpus=1`, `gpu_mem=10gb`, `scratch_local=64gb`.
+- `walltime=12:00:00` for ~400-slide chunks. Scale linearly for larger chunks; cap at 24h.
+- `set -uo pipefail` (no `-e` — `--skip_errors` in TRIDENT handles per-slide failures).
+
+Required env-var inputs from `qsub -v`:
+- `CHUNK_CSV` — absolute path to CSV whose first column is either `<image_id>` or `<image_id>.tiff`. Header row present.
+- `ENCODER` (optional for full-pipeline PBS, required for `_feat_only.pbs`) — canonical encoder key: `uni_v2`, `virchow2`, `conch_v1`, `hoptimus0`, `hoptimus1`, `gigapath`. Full-pipeline PBS scripts default to the encoder in their name.
+- `HF_TOKEN` (optional, **no longer required**) — if unset, the PBS script auto-resolves it via `scripts/encoder_registry.py resolve-token --encoder "$ENCODER" --repo-root "$MIL_DIR"`. Prefer the registry.
+
+### HF token resolution contract
+
+The registry (`mil.encoders.resolve_hf_token`) looks up tokens in this order, per encoder:
+1. Encoder-specific files under `$MIL/` (tried in registry order), e.g.:
+   - `hoptimus0` → `$MIL/H0-optimus0.hf_token` → `$MIL/.hf_token_hoptimus0`
+   - `hoptimus1` → `$MIL/H-optimus1.hf_token` → `$MIL/.hf_token_hoptimus1`
+   - `gigapath`  → `$MIL/prov-gigapath.hf_token` → `$MIL/.hf_token_gigapath`
+2. `$MIL/.hf_token` (shared fallback used by `uni_v2`, `virchow2`, `conch_v1`).
+3. `HF_TOKEN` env var.
+
+All token files must be `chmod 600`. Never commit tokens. On MetaCentrum they live at `/storage/brno2/home/filipsec/MIL/.hf_token*`.
+
+Inside the PBS script, the canonical token-login block is:
+```bash
+if [[ -z "${HF_TOKEN:-}" ]]; then
+  HF_TOKEN="$("$PYTHON_BIN" "$MIL_DIR/scripts/encoder_registry.py" resolve-token \
+              --encoder "$ENCODER" --repo-root "$MIL_DIR" 2>/dev/null || true)"
+fi
+export HF_TOKEN
+[[ -n "${HF_TOKEN:-}" ]] && "$PYTHON_BIN" -c \
+  "import os; from huggingface_hub import login; login(token=os.environ['HF_TOKEN']); print('HF login OK')"
+```
+Do not pass `HF_TOKEN` via `qsub -v` in the normal path — it leaks into job environment dumps and login-node shell history. Rely on the registry.
+
+## Local-scratch staging (required pattern)
+
+WSIs are several GB each; reading from `/storage` is slow and clogs the network. Always stage to `$SCRATCHDIR` first:
+```bash
+mkdir -p "$SCRATCHDIR/wsis"
+awk -F',' 'NR>1 {print $1}' "$CHUNK_CSV" | while read -r name; do
+  base="$name"
+  [[ "$base" != *.tif && "$base" != *.tiff ]] && base="${base}.tiff"
+  src="${WSI_DIR}/${base}"
+  [[ -f "$src" ]] && cp "$src" "$SCRATCHDIR/wsis/" || echo "WARNING: missing $src" >&2
+done
+WSI_DIR="$SCRATCHDIR/wsis"
+```
+`wsi_cache` also goes to scratch: `--wsi_cache "$SCRATCHDIR/wsi_cache"`. Never cache on `/storage`.
+
+## TRIDENT invocation (canonical)
+
+```bash
+python run_batch_of_slides.py \
+  --task all \
+  --wsi_dir "$WSI_DIR" \
+  --job_dir "$JOB_DIR" \
+  --custom_list_of_wsis "$CHUNK_CSV" \
+  --wsi_ext .tiff \
+  --segmenter grandqc \
+  --patch_encoder <encoder> \
+  --mag 20 --patch_size 256 --overlap 0 \
+  --gpu 0 --max_workers 4 --feat_batch_size 96 \
+  --wsi_cache "$SCRATCHDIR/wsi_cache" --cache_batch_size 8 \
+  --remove_artifacts --skip_errors
+```
+
+**LOCKED across all six PFMs:** `--patch_size 256 --mag 20 --overlap 0`. Rationale: guarantees identical `N_patches` per slide across encoders, which lets the MIL `Dataset` stack six features into a single `[N, 6, 1536]` tensor by index (no coord-based alignment needed). Cost: the four encoders natively trained at 224 (`hoptimus0`, `hoptimus1`, `h0-mini`, `openmidnight`) run on slightly resampled inputs. This is an accepted, one-time distribution shift — do not deviate per encoder.
+
+| Encoder flag | Native input | Model | HF auth |
+|---|---|---|---|
+| `uni_v2` | 256 ✓ | UNI2-h (MahmoodLab) | gated |
+| `gigapath` | 256 ✓ | Prov-GigaPath (Microsoft) | gated |
+| `hoptimus0` | 224 → 256 | H-Optimus-0 (Bioptimus) | gated |
+| `hoptimus1` | 224 → 256 | H-Optimus-1 (Bioptimus) | gated |
+| `h0-mini` | 224 → 256 | H0-mini (Bioptimus, distilled) | gated |
+| `openmidnight` | 224 → 256 | OpenMidnight (Sophont/Kaiko) | public |
+
+The only field that varies across the six PBS scripts is `--patch_encoder`. Everything else (patch size, mag, overlap, segmenter, feat_batch_size) stays at the locked canonical values.
+
+**Do not** change `--segmenter` from `grandqc` in primary runs. Otsu is the makeup-pass fallback only.
+
+## Chunking strategy
+
+- Chunks live in `data/lists/chunks/<encoder>/chunk_NNN.csv` — column `wsi` (or `image_id`).
+- Target chunk size: ~300–500 slides per chunk → ~8–12h walltime.
+- Singletons (one-slide recovery runs): `data/lists/singletons/<id>.csv`, same schema.
+- Missing-slide lists: `data/lists/missing_<tag>.csv`.
+- Generator script: `scripts/make_chunks.py` (create if not present; reads `train.csv`, splits into N-sized groups, writes CSVs).
+
+Submission idiom:
+```bash
+for csv in data/lists/chunks/uni_v2/chunk_*.csv; do
+  qsub -v CHUNK_CSV="$(realpath "$csv")" scripts/trident_chunk_extract.pbs
+done
+```
+Rate-limit submissions if you hit MetaCentrum queue caps (`qstat -u $USER | wc -l`).
+
+## Failure modes and recovery
+
+1. **"No contour" (GrandQC false negative):** slide produces no patches. Collect these into `data/lists/missing_<tag>.csv`, rerun with `segmenter=otsu`, `--remove_artifacts` off, then copy the resulting `.h5` into the primary `features_<encoder>/` dir.
+2. **HF 401/403 / `LocalEntryNotFoundError`:** model-card not accepted for this token. Log into HF in a browser under the token owner's account, click "Agree and access repository" on the model card (e.g. `bioptimus/H-optimus-1`), wait for any institutional-approval email, then retry. The registry token file does not need to change.
+3. **CUDA OOM:** drop `--feat_batch_size` from 96 → 64 → 32. Do not raise `gpu_mem` above what's actually needed — larger requests wait longer in the queue.
+4. **Walltime exceeded:** chunk too large; re-chunk smaller. Check `MIL/logs/` for the last processed slide, resume from that point with a new CSV.
+5. **Silent skip:** `--skip_errors` masks per-slide failures. After each job, diff the chunk CSV against produced `.h5` files to catch silently dropped slides.
+
+## Sanity checks after each extraction job
+
+```bash
+# 1. All slides in chunk produced an .h5
+comm -23 \
+  <(awk -F',' 'NR>1{sub(/\.tiff?$/,"",$1); print $1}' "$CHUNK_CSV" | sort) \
+  <(ls "$JOB_DIR/20x_256px_0px_overlap/features_<encoder>/" | sed 's/\.h5$//' | sort)
+
+# 2. Feature shape matches expected dim (1536 for Option B PFMs, 1024 for uni_v1, etc.)
+python -c "
+import h5py, sys
+from pathlib import Path
+for p in list(Path(sys.argv[1]).glob('*.h5'))[:5]:
+    with h5py.File(p) as f:
+        print(p.name, f['features'].shape)
+" "$JOB_DIR/20x_256px_0px_overlap/features_<encoder>/"
+```
+
+## When helping with this workflow
+
+1. Preserve the staging-to-scratch pattern — it's load-bearing for throughput.
+2. Keep `trap 'clean_scratch' TERM EXIT` at the top of every PBS script.
+3. Never hardcode `HF_TOKEN` in a script. Use the registry (`encoder_registry.py resolve-token`) which reads `chmod 600` files under `$MIL/`; only fall back to the `HF_TOKEN` env var.
+4. When adding a new encoder to the Option B ensemble, duplicate the canonical PBS script, change only `--patch_encoder` (and `--patch_size` if the encoder requires a different one), and route outputs to a sibling `features_<encoder>/` dir.
+5. Do not wrap TRIDENT in Python orchestration code — PBS + bash is the execution layer. Python is for chunk generation and post-hoc validation only.
+6. Default answers about "how do I extract features" should point at `scripts/trident_chunk_extract.pbs` and the chunk CSV pattern, not at new tooling.
+
+## Out of scope
+
+- Online feature extraction inside the PyTorch training loop (never — features are always pre-computed).
+- Non-MetaCentrum schedulers (SLURM, LSF). If support is added, create a separate rule.
+- Encoder training or fine-tuning — PFMs are frozen, used only as feature extractors.

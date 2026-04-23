@@ -27,9 +27,9 @@ description: Context and instructions for the PANDA WSI MIL project. Use when as
 | `data/raw/train_label_masks/` | Optional mask TIFFs. |
 | `data/lists/` | Slide lists: e.g. `missing_21_slides.csv` (column `wsi` = `<id>.tiff`), `singletons/<id>.csv` for one-slide jobs. |
 | `data/splits/panda_5fold_stratified.csv` | 5-fold split: columns `image_id`, `fold` (0–4). Created by `scripts/make_panda_5fold_splits.py`. |
-| `data/trident_out/.../features_uni_v2/` | TRIDENT output: one `<slide_id>.h5` per slide; key `features` → array `[N_patches, feat_dim]`. Fallback: `data/trident_out_makeup_otsu/.../features_uni_v2/`. |
+| `data/trident_out/.../features_uni_v2/` | TRIDENT output: one `<slide_id>.h5` per slide; key `features` → array `[N_patches, feat_dim]`. |
 | `notebooks/mil_workflow.ipynb` | Main workflow: setup, labels, OpenSlide inspection, splits, H5 loading, PyTorch MIL (Dataset, model, training). |
-| `scripts/` | PBS and helper scripts: `trident_chunk_extract.pbs`, `trident_makeup_otsu.pbs`, `make_panda_5fold_splits.py`, `run_makeup_interactive.sh`, etc. |
+| `scripts/` | CLIs and PBS: `run_training.py`, `mil_training.pbs`, `trident_chunk_extract*.pbs`, `make_panda_5fold_splits.py`, `plot_attention_map.py`, etc. |
 | `docs/` | TRIDENT_WORKING_CONFIG_AND_NEXT_STEPS.md, PANDA_WSI_MIL_PIPELINE_PLAN.md. |
 
 ---

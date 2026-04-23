@@ -32,4 +32,4 @@ g = wsi_geometry_from_path("slide.tiff", seg_level=-1)
 print(format_wsi_geometry_lines(g, lang="sk"))
 ```
 
-Publikovateľné figúry z `plot_attention_figure_publishable` môžu mať tento blok v pätičke (pozri `--wsi-seg-level` v `plot_attention_figures.py`).
+Publikovateľné figúry z `mil.attention_map.plot_attention_figure_publishable` môžu mať tento blok v pätičke (parametre ako `seg_level` v tej funkcii alebo CLI v `scripts/plot_attention_map.py`).

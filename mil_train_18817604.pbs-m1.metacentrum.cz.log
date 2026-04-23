@@ -1,0 +1,318 @@
+[2026-04-08 22:31:54] H5 count in FEAT_DIR: 10595
+[2026-04-08 22:31:54] PRELOAD=1 COPY_TO_SCRATCH=1
+[2026-04-08 22:31:54] Copying FEAT_DIR to /scratch.ssd/filipsec/job_18817604.pbs-m1/features (local SSD)...
+[2026-04-08 22:33:39] Copy done in 105s. FEAT_DIR=/scratch.ssd/filipsec/job_18817604.pbs-m1/features
+[2026-04-08 22:33:39] CKPT_DIR=/storage/brno2/home/filipsec/MIL/checkpoints/features_uni_v2_clam_compare
+[2026-04-08 22:33:40] Node: zia4.cerit-sc.cz
+[2026-04-08 22:33:40] PBS_JOBID=18817604.pbs-m1.metacentrum.cz
+[2026-04-08 22:33:40] FEAT_DIR=/scratch.ssd/filipsec/job_18817604.pbs-m1/features FEATURE_DIM=1536 COORDS_DIR=
+[2026-04-08 22:33:40] MODEL=clam EPOCHS=30 PATIENCE=10 PATCH_DROPOUT=0.0 BATCH_SIZE=4 FOLDS=all
+[2026-04-08 22:33:40] NUM_WORKERS=4 MAX_PATCHES_TRAIN=512 MAX_PATCHES_VAL=512
+[2026-04-08 22:33:40] Git commit: N/A
+[2026-04-08 22:33:40] Git status:
+Wed Apr  8 22:33:40 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.126.09             Driver Version: 580.126.09     CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA A100-SXM4-40GB          On  |   00000000:2F:00.0 Off |                    0 |
+| N/A   34C    P0             51W /  400W |       0MiB /  40960MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+[2026-04-08 22:33:40] Python: /storage/brno2/home/filipsec/.conda/envs/trident/bin/python
+Python 3.10.19
+PyTorch: 2.5.1.post303
+CUDA available: True
+GPU: NVIDIA A100-SXM4-40GB
+SANITY 0005f7aaab2800f6170c399693a96917.h5 (534, 1536)
+SANITY 000920ad0b612851f8e01bcc880d9b3d.h5 (239, 1536)
+SANITY 0018ae58b01bdadc8e347995b69f99aa.h5 (532, 1536)
+feature sanity OK
+mil package OK
+[2026-04-08 22:34:28] Run command: /storage/brno2/home/filipsec/.conda/envs/trident/bin/python scripts/run_training.py --feat-dir /scratch.ssd/filipsec/job_18817604.pbs-m1/features --train-csv /storage/brno2/home/filipsec/MIL/data/raw/train.csv --splits-csv /storage/brno2/home/filipsec/MIL/data/splits/panda_5fold_stratified.csv --model clam --epochs 30 --patience 10 --patch-dropout 0.0 --batch-size 4 --top-k 8 --num-workers 4 --max-patches-train 512 --max-patches-val 512 --lr 0.01 --warmup-epochs 5 --ce-weight 0.3 --seed 42 --checkpoint-dir /storage/brno2/home/filipsec/MIL/checkpoints/features_uni_v2_clam_compare --preload
+[2026-04-08 22:34:28] Starting training
+Device: cuda
+Available .h5 files: 10595
+feat_dim: 1536
+Preload: fold-local (per-fold cache, discarded after each fold)
+
+============================================================
+FOLD 0 START
+============================================================
+  train: 8477, val: 2118
+  Preloading 10595 slides for this fold...
+  Loaded 1000/10595 slides (feats ~3.4 GB, coords ~0.00 GB)
+  Loaded 2000/10595 slides (feats ~6.8 GB, coords ~0.01 GB)
+  Loaded 3000/10595 slides (feats ~10.3 GB, coords ~0.01 GB)
+  Loaded 4000/10595 slides (feats ~13.7 GB, coords ~0.02 GB)
+  Loaded 5000/10595 slides (feats ~17.2 GB, coords ~0.02 GB)
+  Loaded 6000/10595 slides (feats ~20.6 GB, coords ~0.03 GB)
+  Loaded 7000/10595 slides (feats ~24.1 GB, coords ~0.03 GB)
+  Loaded 8000/10595 slides (feats ~27.5 GB, coords ~0.04 GB)
+  Loaded 9000/10595 slides (feats ~31.0 GB, coords ~0.04 GB)
+  Loaded 10000/10595 slides (feats ~34.5 GB, coords ~0.04 GB)
+  Preloaded 10595 slides, feats ~36.6 GB; coords ~0.05 GB (10595 slides with coords)
+  train: 8477 slides, 2120 batches | val: 2118 slides, 530 batches
+  Fold 0 | Epoch   1/30 | train_loss=2.0608 | val_loss=1.5257 | qwk=0.4485 | bal_acc=0.3197 | mae=1.240 | train=45.4s (187 slides/s, 83823 patches/s) | val=8.9s (239 slides/s, 107974 patches/s) | epoch=54.3s
+  Fold 0 | Epoch   2/30 | train_loss=1.0088 | val_loss=0.8195 | qwk=0.8509 | bal_acc=0.5733 | mae=0.485 | train=43.4s (195 slides/s, 87712 patches/s) | val=6.6s (319 slides/s, 144307 patches/s) | epoch=50.0s
+  Fold 0 | Epoch   3/30 | train_loss=0.8338 | val_loss=0.7659 | qwk=0.8692 | bal_acc=0.6311 | mae=0.407 | train=43.7s (194 slides/s, 87150 patches/s) | val=6.3s (337 slides/s, 152640 patches/s) | epoch=50.0s
+  Fold 0 | Epoch   4/30 | train_loss=0.8093 | val_loss=0.8361 | qwk=0.8431 | bal_acc=0.5803 | mae=0.455 | train=42.1s (201 slides/s, 90461 patches/s) | val=5.9s (359 slides/s, 162580 patches/s) | epoch=48.0s
+  Fold 0 | Epoch   5/30 | train_loss=0.7904 | val_loss=1.0050 | qwk=0.8608 | bal_acc=0.5806 | mae=0.460 | train=41.4s (205 slides/s, 91928 patches/s) | val=6.0s (354 slides/s, 160193 patches/s) | epoch=47.4s
+  Fold 0 | Epoch   6/30 | train_loss=0.7815 | val_loss=0.7631 | qwk=0.8697 | bal_acc=0.6383 | mae=0.424 | train=41.1s (206 slides/s, 92663 patches/s) | val=6.1s (350 slides/s, 158357 patches/s) | epoch=47.1s
+  Fold 0 | Epoch   7/30 | train_loss=0.7283 | val_loss=0.7411 | qwk=0.8689 | bal_acc=0.6360 | mae=0.399 | train=43.0s (197 slides/s, 88467 patches/s) | val=6.3s (337 slides/s, 152461 patches/s) | epoch=49.3s
+  Fold 0 | Epoch   8/30 | train_loss=0.6806 | val_loss=0.8379 | qwk=0.8333 | bal_acc=0.6096 | mae=0.451 | train=42.8s (198 slides/s, 88896 patches/s) | val=6.3s (336 slides/s, 152206 patches/s) | epoch=49.1s
+  Fold 0 | Epoch   9/30 | train_loss=0.6382 | val_loss=0.7655 | qwk=0.8689 | bal_acc=0.6380 | mae=0.407 | train=42.5s (200 slides/s, 89640 patches/s) | val=6.2s (343 slides/s, 155118 patches/s) | epoch=48.6s
+  Fold 0 | Epoch  10/30 | train_loss=0.5887 | val_loss=0.8865 | qwk=0.8566 | bal_acc=0.6333 | mae=0.446 | train=43.2s (196 slides/s, 88024 patches/s) | val=6.1s (347 slides/s, 157180 patches/s) | epoch=49.3s
+  Fold 0 | Epoch  11/30 | train_loss=0.5492 | val_loss=0.7555 | qwk=0.8662 | bal_acc=0.6650 | mae=0.385 | train=43.3s (196 slides/s, 87912 patches/s) | val=6.4s (329 slides/s, 148850 patches/s) | epoch=49.7s
+  Fold 0 | Epoch  12/30 | train_loss=0.4932 | val_loss=0.7358 | qwk=0.8676 | bal_acc=0.6785 | mae=0.377 | train=44.0s (192 slides/s, 86431 patches/s) | val=6.2s (342 slides/s, 154632 patches/s) | epoch=50.2s
+  Fold 0 | Epoch  13/30 | train_loss=0.4613 | val_loss=0.7279 | qwk=0.8585 | bal_acc=0.6913 | mae=0.396 | train=43.9s (193 slides/s, 86695 patches/s) | val=6.3s (335 slides/s, 151771 patches/s) | epoch=50.2s
+  Fold 0 | Epoch  14/30 | train_loss=0.4050 | val_loss=0.7805 | qwk=0.8654 | bal_acc=0.6970 | mae=0.379 | train=43.0s (197 slides/s, 88510 patches/s) | val=6.1s (348 slides/s, 157399 patches/s) | epoch=49.1s
+  Fold 0 | Epoch  15/30 | train_loss=0.3628 | val_loss=0.7901 | qwk=0.8699 | bal_acc=0.7023 | mae=0.369 | train=42.5s (199 slides/s, 89514 patches/s) | val=6.2s (343 slides/s, 155040 patches/s) | epoch=48.7s
+  Fold 0 | Epoch  16/30 | train_loss=0.3262 | val_loss=0.8713 | qwk=0.8569 | bal_acc=0.6634 | mae=0.407 | train=42.6s (199 slides/s, 89455 patches/s) | val=5.7s (372 slides/s, 168292 patches/s) | epoch=48.2s
+  Fold 0 | Epoch  17/30 | train_loss=0.2932 | val_loss=0.7456 | qwk=0.8856 | bal_acc=0.7218 | mae=0.331 | train=42.5s (200 slides/s, 89602 patches/s) | val=6.0s (351 slides/s, 158934 patches/s) | epoch=48.5s
+  Fold 0 | Epoch  18/30 | train_loss=0.2453 | val_loss=0.7979 | qwk=0.8740 | bal_acc=0.7104 | mae=0.355 | train=42.4s (200 slides/s, 89846 patches/s) | val=6.0s (356 slides/s, 160980 patches/s) | epoch=48.3s
+  Fold 0 | Epoch  19/30 | train_loss=0.2012 | val_loss=0.8283 | qwk=0.8778 | bal_acc=0.7310 | mae=0.336 | train=42.4s (200 slides/s, 89740 patches/s) | val=6.1s (345 slides/s, 156173 patches/s) | epoch=48.6s
+  Fold 0 | Epoch  20/30 | train_loss=0.1794 | val_loss=0.8121 | qwk=0.8774 | bal_acc=0.7320 | mae=0.331 | train=42.6s (199 slides/s, 89289 patches/s) | val=6.2s (343 slides/s, 155377 patches/s) | epoch=48.8s
+  Fold 0 | Epoch  21/30 | train_loss=0.1438 | val_loss=0.8346 | qwk=0.8826 | bal_acc=0.7328 | mae=0.329 | train=42.4s (200 slides/s, 89767 patches/s) | val=6.1s (348 slides/s, 157511 patches/s) | epoch=48.5s
+  Fold 0 | Epoch  22/30 | train_loss=0.1258 | val_loss=0.8290 | qwk=0.8835 | bal_acc=0.7378 | mae=0.320 | train=42.2s (201 slides/s, 90212 patches/s) | val=6.0s (353 slides/s, 159550 patches/s) | epoch=48.2s
+  Fold 0 | Epoch  23/30 | train_loss=0.1014 | val_loss=0.8244 | qwk=0.8860 | bal_acc=0.7476 | mae=0.313 | train=41.9s (202 slides/s, 90761 patches/s) | val=5.9s (357 slides/s, 161674 patches/s) | epoch=47.9s
+  Fold 0 | Epoch  24/30 | train_loss=0.0865 | val_loss=0.8867 | qwk=0.8798 | bal_acc=0.7359 | mae=0.329 | train=42.5s (199 slides/s, 89578 patches/s) | val=6.2s (343 slides/s, 155159 patches/s) | epoch=48.7s
+  Fold 0 | Epoch  25/30 | train_loss=0.0797 | val_loss=0.8565 | qwk=0.8837 | bal_acc=0.7438 | mae=0.322 | train=43.0s (197 slides/s, 88604 patches/s) | val=6.3s (335 slides/s, 151756 patches/s) | epoch=49.3s
+  Fold 0 | Epoch  26/30 | train_loss=0.0670 | val_loss=0.9053 | qwk=0.8823 | bal_acc=0.7387 | mae=0.325 | train=42.6s (199 slides/s, 89256 patches/s) | val=6.3s (338 slides/s, 152786 patches/s) | epoch=48.9s
+  Fold 0 | Epoch  27/30 | train_loss=0.0602 | val_loss=0.8754 | qwk=0.8839 | bal_acc=0.7474 | mae=0.316 | train=44.4s (191 slides/s, 85682 patches/s) | val=6.5s (324 slides/s, 146545 patches/s) | epoch=51.0s
+  Fold 0 | Epoch  28/30 | train_loss=0.0599 | val_loss=0.8906 | qwk=0.8837 | bal_acc=0.7582 | mae=0.312 | train=43.7s (194 slides/s, 87154 patches/s) | val=6.1s (347 slides/s, 157100 patches/s) | epoch=49.8s
+  Fold 0 | Epoch  29/30 | train_loss=0.0558 | val_loss=0.8719 | qwk=0.8820 | bal_acc=0.7469 | mae=0.321 | train=43.5s (195 slides/s, 87426 patches/s) | val=6.6s (321 slides/s, 145283 patches/s) | epoch=50.1s
+  Fold 0 | Epoch  30/30 | train_loss=0.0509 | val_loss=0.9143 | qwk=0.8821 | bal_acc=0.7511 | mae=0.318 | train=44.4s (191 slides/s, 85748 patches/s) | val=6.5s (327 slides/s, 147976 patches/s) | epoch=50.9s
+
+  FOLD 0 END | walltime=1587.4s (26.5 min)
+
+============================================================
+FOLD 1 START
+============================================================
+  train: 8474, val: 2121
+  Preloading 10595 slides for this fold...
+  Loaded 1000/10595 slides (feats ~3.4 GB, coords ~0.00 GB)
+  Loaded 2000/10595 slides (feats ~6.9 GB, coords ~0.01 GB)
+  Loaded 3000/10595 slides (feats ~10.3 GB, coords ~0.01 GB)
+  Loaded 4000/10595 slides (feats ~13.8 GB, coords ~0.02 GB)
+  Loaded 5000/10595 slides (feats ~17.3 GB, coords ~0.02 GB)
+  Loaded 6000/10595 slides (feats ~20.7 GB, coords ~0.03 GB)
+  Loaded 7000/10595 slides (feats ~24.2 GB, coords ~0.03 GB)
+  Loaded 8000/10595 slides (feats ~27.6 GB, coords ~0.04 GB)
+  Loaded 9000/10595 slides (feats ~31.0 GB, coords ~0.04 GB)
+  Loaded 10000/10595 slides (feats ~34.5 GB, coords ~0.04 GB)
+  Preloaded 10595 slides, feats ~36.6 GB; coords ~0.05 GB (10595 slides with coords)
+  train: 8474 slides, 2119 batches | val: 2121 slides, 531 batches
+  Fold 1 | Epoch   1/30 | train_loss=2.0388 | val_loss=1.5258 | qwk=0.4126 | bal_acc=0.2903 | mae=1.185 | train=42.7s (199 slides/s, 89350 patches/s) | val=8.6s (246 slides/s, 110498 patches/s) | epoch=51.3s
+  Fold 1 | Epoch   2/30 | train_loss=1.0036 | val_loss=0.7984 | qwk=0.8707 | bal_acc=0.6406 | mae=0.420 | train=40.7s (208 slides/s, 93664 patches/s) | val=5.7s (374 slides/s, 167686 patches/s) | epoch=46.4s
+  Fold 1 | Epoch   3/30 | train_loss=0.8356 | val_loss=0.8337 | qwk=0.8681 | bal_acc=0.6283 | mae=0.455 | train=41.1s (206 slides/s, 92753 patches/s) | val=5.6s (379 slides/s, 170031 patches/s) | epoch=46.7s
+  Fold 1 | Epoch   4/30 | train_loss=0.8089 | val_loss=0.7848 | qwk=0.8563 | bal_acc=0.6312 | mae=0.439 | train=41.2s (205 slides/s, 92453 patches/s) | val=5.6s (377 slides/s, 169138 patches/s) | epoch=46.9s
+  Fold 1 | Epoch   5/30 | train_loss=0.7827 | val_loss=0.7905 | qwk=0.8574 | bal_acc=0.5975 | mae=0.443 | train=41.5s (204 slides/s, 91814 patches/s) | val=5.7s (375 slides/s, 168347 patches/s) | epoch=47.2s
+  Fold 1 | Epoch   6/30 | train_loss=0.7727 | val_loss=0.7797 | qwk=0.8663 | bal_acc=0.6184 | mae=0.437 | train=42.6s (199 slides/s, 89462 patches/s) | val=5.6s (379 slides/s, 170206 patches/s) | epoch=48.2s
+  Fold 1 | Epoch   7/30 | train_loss=0.7410 | val_loss=0.9684 | qwk=0.8542 | bal_acc=0.5983 | mae=0.460 | train=41.6s (204 slides/s, 91622 patches/s) | val=5.7s (375 slides/s, 168170 patches/s) | epoch=47.3s
+  Fold 1 | Epoch   8/30 | train_loss=0.6910 | val_loss=0.7225 | qwk=0.8683 | bal_acc=0.6538 | mae=0.394 | train=41.5s (204 slides/s, 91821 patches/s) | val=5.8s (367 slides/s, 164850 patches/s) | epoch=47.3s
+  Fold 1 | Epoch   9/30 | train_loss=0.6475 | val_loss=0.7223 | qwk=0.8792 | bal_acc=0.6820 | mae=0.370 | train=41.9s (202 slides/s, 90919 patches/s) | val=5.6s (380 slides/s, 170347 patches/s) | epoch=47.5s
+  Fold 1 | Epoch  10/30 | train_loss=0.6010 | val_loss=0.7494 | qwk=0.8866 | bal_acc=0.6802 | mae=0.361 | train=42.4s (200 slides/s, 90020 patches/s) | val=5.8s (365 slides/s, 163778 patches/s) | epoch=48.2s
+  Fold 1 | Epoch  11/30 | train_loss=0.5637 | val_loss=0.7134 | qwk=0.8910 | bal_acc=0.6942 | mae=0.346 | train=42.3s (200 slides/s, 90048 patches/s) | val=5.7s (370 slides/s, 166128 patches/s) | epoch=48.1s
+  Fold 1 | Epoch  12/30 | train_loss=0.5165 | val_loss=0.7737 | qwk=0.8975 | bal_acc=0.6957 | mae=0.340 | train=42.3s (201 slides/s, 90234 patches/s) | val=5.7s (375 slides/s, 168380 patches/s) | epoch=47.9s
+  Fold 1 | Epoch  13/30 | train_loss=0.4532 | val_loss=0.7779 | qwk=0.8821 | bal_acc=0.6957 | mae=0.357 | train=42.2s (201 slides/s, 90365 patches/s) | val=5.7s (373 slides/s, 167409 patches/s) | epoch=47.9s
+  Fold 1 | Epoch  14/30 | train_loss=0.4202 | val_loss=0.7399 | qwk=0.8919 | bal_acc=0.7055 | mae=0.336 | train=42.6s (199 slides/s, 89598 patches/s) | val=5.7s (373 slides/s, 167535 patches/s) | epoch=48.2s
+  Fold 1 | Epoch  15/30 | train_loss=0.3665 | val_loss=0.7698 | qwk=0.8872 | bal_acc=0.6984 | mae=0.347 | train=42.2s (201 slides/s, 90434 patches/s) | val=5.7s (370 slides/s, 165807 patches/s) | epoch=47.9s
+  Fold 1 | Epoch  16/30 | train_loss=0.3425 | val_loss=0.7675 | qwk=0.8912 | bal_acc=0.7150 | mae=0.340 | train=42.4s (200 slides/s, 89839 patches/s) | val=5.6s (376 slides/s, 168645 patches/s) | epoch=48.1s
+  Fold 1 | Epoch  17/30 | train_loss=0.2937 | val_loss=0.7741 | qwk=0.9000 | bal_acc=0.7179 | mae=0.323 | train=43.8s (193 slides/s, 86971 patches/s) | val=5.9s (360 slides/s, 161655 patches/s) | epoch=49.7s
+  Fold 1 | Epoch  18/30 | train_loss=0.2502 | val_loss=0.8437 | qwk=0.8917 | bal_acc=0.7233 | mae=0.342 | train=42.4s (200 slides/s, 90031 patches/s) | val=5.7s (372 slides/s, 166733 patches/s) | epoch=48.1s
+  Fold 1 | Epoch  19/30 | train_loss=0.2013 | val_loss=0.8395 | qwk=0.8903 | bal_acc=0.7305 | mae=0.325 | train=42.9s (197 slides/s, 88815 patches/s) | val=5.8s (369 slides/s, 165461 patches/s) | epoch=48.7s
+  Fold 1 | Epoch  20/30 | train_loss=0.1775 | val_loss=0.7899 | qwk=0.8945 | bal_acc=0.7397 | mae=0.315 | train=42.2s (201 slides/s, 90445 patches/s) | val=5.7s (371 slides/s, 166287 patches/s) | epoch=47.9s
+  Fold 1 | Epoch  21/30 | train_loss=0.1493 | val_loss=0.8667 | qwk=0.9016 | bal_acc=0.7425 | mae=0.307 | train=42.3s (201 slides/s, 90224 patches/s) | val=5.3s (397 slides/s, 178281 patches/s) | epoch=47.6s
+  Fold 1 | Epoch  22/30 | train_loss=0.1267 | val_loss=0.8812 | qwk=0.8977 | bal_acc=0.7405 | mae=0.313 | train=40.8s (208 slides/s, 93472 patches/s) | val=5.2s (407 slides/s, 182450 patches/s) | epoch=46.0s
+  Fold 1 | Epoch  23/30 | train_loss=0.1056 | val_loss=0.8903 | qwk=0.9018 | bal_acc=0.7488 | mae=0.305 | train=41.1s (206 slides/s, 92780 patches/s) | val=5.3s (397 slides/s, 178098 patches/s) | epoch=46.4s
+  Fold 1 | Epoch  24/30 | train_loss=0.0890 | val_loss=0.9425 | qwk=0.8944 | bal_acc=0.7367 | mae=0.317 | train=41.0s (206 slides/s, 92888 patches/s) | val=5.3s (400 slides/s, 179365 patches/s) | epoch=46.4s
+  Fold 1 | Epoch  25/30 | train_loss=0.0767 | val_loss=0.9032 | qwk=0.8991 | bal_acc=0.7434 | mae=0.306 | train=43.5s (195 slides/s, 87586 patches/s) | val=6.2s (341 slides/s, 152847 patches/s) | epoch=49.8s
+  Fold 1 | Epoch  26/30 | train_loss=0.0677 | val_loss=0.9026 | qwk=0.9046 | bal_acc=0.7523 | mae=0.297 | train=44.5s (190 slides/s, 85611 patches/s) | val=6.0s (351 slides/s, 157520 patches/s) | epoch=50.6s
+  Fold 1 | Epoch  27/30 | train_loss=0.0621 | val_loss=0.9413 | qwk=0.8986 | bal_acc=0.7472 | mae=0.309 | train=44.8s (189 slides/s, 85171 patches/s) | val=6.0s (351 slides/s, 157687 patches/s) | epoch=50.8s
+  Fold 1 | Epoch  28/30 | train_loss=0.0599 | val_loss=0.9351 | qwk=0.9007 | bal_acc=0.7471 | mae=0.306 | train=44.5s (191 slides/s, 85750 patches/s) | val=6.2s (341 slides/s, 153156 patches/s) | epoch=50.7s
+  Fold 1 | Epoch  29/30 | train_loss=0.0577 | val_loss=0.9213 | qwk=0.9028 | bal_acc=0.7498 | mae=0.302 | train=43.9s (193 slides/s, 86844 patches/s) | val=5.9s (360 slides/s, 161465 patches/s) | epoch=49.8s
+  Fold 1 | Epoch  30/30 | train_loss=0.0576 | val_loss=0.9156 | qwk=0.9010 | bal_acc=0.7431 | mae=0.309 | train=43.3s (196 slides/s, 88122 patches/s) | val=5.7s (375 slides/s, 168304 patches/s) | epoch=48.9s
+
+  FOLD 1 END | walltime=1552.6s (25.9 min)
+
+============================================================
+FOLD 2 START
+============================================================
+  train: 8479, val: 2116
+  Preloading 10595 slides for this fold...
+  Loaded 1000/10595 slides (feats ~3.4 GB, coords ~0.00 GB)
+  Loaded 2000/10595 slides (feats ~6.8 GB, coords ~0.01 GB)
+  Loaded 3000/10595 slides (feats ~10.3 GB, coords ~0.01 GB)
+  Loaded 4000/10595 slides (feats ~13.8 GB, coords ~0.02 GB)
+  Loaded 5000/10595 slides (feats ~17.2 GB, coords ~0.02 GB)
+  Loaded 6000/10595 slides (feats ~20.7 GB, coords ~0.03 GB)
+  Loaded 7000/10595 slides (feats ~24.2 GB, coords ~0.03 GB)
+  Loaded 8000/10595 slides (feats ~27.6 GB, coords ~0.04 GB)
+  Loaded 9000/10595 slides (feats ~31.1 GB, coords ~0.04 GB)
+  Loaded 10000/10595 slides (feats ~34.5 GB, coords ~0.04 GB)
+  Preloaded 10595 slides, feats ~36.6 GB; coords ~0.05 GB (10595 slides with coords)
+  train: 8479 slides, 2120 batches | val: 2116 slides, 529 batches
+  Fold 2 | Epoch   1/30 | train_loss=2.0876 | val_loss=1.5293 | qwk=0.4274 | bal_acc=0.3218 | mae=1.210 | train=43.2s (196 slides/s, 88358 patches/s) | val=8.5s (249 slides/s, 111948 patches/s) | epoch=51.7s
+  Fold 2 | Epoch   2/30 | train_loss=1.0130 | val_loss=0.7359 | qwk=0.8783 | bal_acc=0.6433 | mae=0.404 | train=39.5s (215 slides/s, 96500 patches/s) | val=5.6s (381 slides/s, 171034 patches/s) | epoch=45.1s
+  Fold 2 | Epoch   3/30 | train_loss=0.8460 | val_loss=0.8015 | qwk=0.8789 | bal_acc=0.6353 | mae=0.423 | train=42.0s (202 slides/s, 90741 patches/s) | val=5.6s (375 slides/s, 168637 patches/s) | epoch=47.7s
+  Fold 2 | Epoch   4/30 | train_loss=0.8141 | val_loss=0.8476 | qwk=0.8675 | bal_acc=0.5730 | mae=0.439 | train=40.9s (207 slides/s, 93182 patches/s) | val=5.6s (375 slides/s, 168487 patches/s) | epoch=46.6s
+  Fold 2 | Epoch   5/30 | train_loss=0.8033 | val_loss=0.7788 | qwk=0.8705 | bal_acc=0.6010 | mae=0.433 | train=41.2s (206 slides/s, 92482 patches/s) | val=5.7s (372 slides/s, 167236 patches/s) | epoch=46.9s
+  Fold 2 | Epoch   6/30 | train_loss=0.8055 | val_loss=0.7715 | qwk=0.8646 | bal_acc=0.6418 | mae=0.425 | train=40.8s (208 slides/s, 93540 patches/s) | val=5.6s (379 slides/s, 170405 patches/s) | epoch=46.4s
+  Fold 2 | Epoch   7/30 | train_loss=0.7541 | val_loss=0.7313 | qwk=0.8781 | bal_acc=0.6435 | mae=0.400 | train=41.2s (206 slides/s, 92629 patches/s) | val=5.5s (383 slides/s, 171981 patches/s) | epoch=46.7s
+  Fold 2 | Epoch   8/30 | train_loss=0.7003 | val_loss=0.7327 | qwk=0.8759 | bal_acc=0.6518 | mae=0.402 | train=41.2s (206 slides/s, 92575 patches/s) | val=5.6s (380 slides/s, 170929 patches/s) | epoch=46.8s
+  Fold 2 | Epoch   9/30 | train_loss=0.6528 | val_loss=0.7890 | qwk=0.8826 | bal_acc=0.6547 | mae=0.404 | train=40.9s (207 slides/s, 93175 patches/s) | val=5.6s (377 slides/s, 169444 patches/s) | epoch=46.5s
+  Fold 2 | Epoch  10/30 | train_loss=0.6075 | val_loss=0.7363 | qwk=0.8828 | bal_acc=0.6677 | mae=0.364 | train=41.4s (205 slides/s, 92103 patches/s) | val=5.6s (376 slides/s, 168886 patches/s) | epoch=47.0s
+  Fold 2 | Epoch  11/30 | train_loss=0.5523 | val_loss=0.9304 | qwk=0.8635 | bal_acc=0.6066 | mae=0.440 | train=42.3s (201 slides/s, 90212 patches/s) | val=5.6s (379 slides/s, 170398 patches/s) | epoch=47.9s
+  Fold 2 | Epoch  12/30 | train_loss=0.5056 | val_loss=0.7728 | qwk=0.8680 | bal_acc=0.6594 | mae=0.390 | train=41.0s (207 slides/s, 92981 patches/s) | val=5.5s (386 slides/s, 173484 patches/s) | epoch=46.5s
+  Fold 2 | Epoch  13/30 | train_loss=0.4693 | val_loss=0.7873 | qwk=0.8816 | bal_acc=0.6685 | mae=0.368 | train=41.6s (204 slides/s, 91768 patches/s) | val=5.5s (382 slides/s, 171674 patches/s) | epoch=47.1s
+  Fold 2 | Epoch  14/30 | train_loss=0.4921 | val_loss=0.7840 | qwk=0.8817 | bal_acc=0.6963 | mae=0.371 | train=41.7s (203 slides/s, 91366 patches/s) | val=5.6s (378 slides/s, 169628 patches/s) | epoch=47.3s
+  Fold 2 | Epoch  15/30 | train_loss=0.4119 | val_loss=0.8299 | qwk=0.8714 | bal_acc=0.6715 | mae=0.402 | train=41.9s (202 slides/s, 90992 patches/s) | val=5.5s (384 slides/s, 172343 patches/s) | epoch=47.4s
+  Fold 2 | Epoch  16/30 | train_loss=0.3474 | val_loss=0.7814 | qwk=0.8841 | bal_acc=0.6937 | mae=0.354 | train=41.6s (204 slides/s, 91759 patches/s) | val=5.6s (379 slides/s, 170309 patches/s) | epoch=47.1s
+  Fold 2 | Epoch  17/30 | train_loss=0.3149 | val_loss=0.7591 | qwk=0.8762 | bal_acc=0.7037 | mae=0.353 | train=42.4s (200 slides/s, 89881 patches/s) | val=5.7s (374 slides/s, 168018 patches/s) | epoch=48.1s
+  Fold 2 | Epoch  18/30 | train_loss=0.2678 | val_loss=0.7654 | qwk=0.8772 | bal_acc=0.7089 | mae=0.354 | train=43.1s (197 slides/s, 88508 patches/s) | val=5.6s (380 slides/s, 170725 patches/s) | epoch=48.7s
+  Fold 2 | Epoch  19/30 | train_loss=0.2212 | val_loss=0.7815 | qwk=0.8837 | bal_acc=0.7086 | mae=0.352 | train=43.0s (197 slides/s, 88634 patches/s) | val=5.7s (373 slides/s, 167804 patches/s) | epoch=48.7s
+  Fold 2 | Epoch  20/30 | train_loss=0.1902 | val_loss=0.7943 | qwk=0.8890 | bal_acc=0.7254 | mae=0.331 | train=42.7s (198 slides/s, 89277 patches/s) | val=5.6s (377 slides/s, 169327 patches/s) | epoch=48.3s
+  Fold 2 | Epoch  21/30 | train_loss=0.1510 | val_loss=0.8654 | qwk=0.8919 | bal_acc=0.7321 | mae=0.335 | train=42.8s (198 slides/s, 89145 patches/s) | val=5.5s (383 slides/s, 172099 patches/s) | epoch=48.3s
+  Fold 2 | Epoch  22/30 | train_loss=0.1291 | val_loss=0.7952 | qwk=0.8878 | bal_acc=0.7405 | mae=0.324 | train=42.6s (199 slides/s, 89547 patches/s) | val=5.5s (382 slides/s, 171598 patches/s) | epoch=48.1s
+  Fold 2 | Epoch  23/30 | train_loss=0.1079 | val_loss=0.8900 | qwk=0.8838 | bal_acc=0.7422 | mae=0.341 | train=41.6s (204 slides/s, 91707 patches/s) | val=5.6s (381 slides/s, 171065 patches/s) | epoch=47.1s
+  Fold 2 | Epoch  24/30 | train_loss=0.0971 | val_loss=0.8774 | qwk=0.8940 | bal_acc=0.7480 | mae=0.322 | train=41.5s (204 slides/s, 91940 patches/s) | val=5.5s (386 slides/s, 173566 patches/s) | epoch=47.0s
+  Fold 2 | Epoch  25/30 | train_loss=0.0856 | val_loss=0.8929 | qwk=0.8895 | bal_acc=0.7485 | mae=0.325 | train=41.2s (206 slides/s, 92481 patches/s) | val=5.4s (392 slides/s, 175952 patches/s) | epoch=46.6s
+  Fold 2 | Epoch  26/30 | train_loss=0.0778 | val_loss=0.8652 | qwk=0.8967 | bal_acc=0.7490 | mae=0.311 | train=41.7s (204 slides/s, 91545 patches/s) | val=5.6s (377 slides/s, 169479 patches/s) | epoch=47.3s
+  Fold 2 | Epoch  27/30 | train_loss=0.0681 | val_loss=0.8534 | qwk=0.8962 | bal_acc=0.7508 | mae=0.307 | train=42.2s (201 slides/s, 90281 patches/s) | val=5.6s (381 slides/s, 171096 patches/s) | epoch=47.8s
+  Fold 2 | Epoch  28/30 | train_loss=0.0640 | val_loss=0.8550 | qwk=0.8958 | bal_acc=0.7455 | mae=0.314 | train=42.5s (199 slides/s, 89658 patches/s) | val=5.6s (378 slides/s, 169735 patches/s) | epoch=48.1s
+  Fold 2 | Epoch  29/30 | train_loss=0.0628 | val_loss=0.8766 | qwk=0.8896 | bal_acc=0.7525 | mae=0.319 | train=43.2s (196 slides/s, 88261 patches/s) | val=5.6s (378 slides/s, 170001 patches/s) | epoch=48.8s
+  Fold 2 | Epoch  30/30 | train_loss=0.0603 | val_loss=0.8727 | qwk=0.8937 | bal_acc=0.7520 | mae=0.314 | train=42.4s (200 slides/s, 90043 patches/s) | val=5.6s (379 slides/s, 170102 patches/s) | epoch=47.9s
+
+  FOLD 2 END | walltime=1505.3s (25.1 min)
+
+============================================================
+FOLD 3 START
+============================================================
+  train: 8478, val: 2117
+  Preloading 10595 slides for this fold...
+  Loaded 1000/10595 slides (feats ~3.4 GB, coords ~0.00 GB)
+  Loaded 2000/10595 slides (feats ~6.9 GB, coords ~0.01 GB)
+  Loaded 3000/10595 slides (feats ~10.3 GB, coords ~0.01 GB)
+  Loaded 4000/10595 slides (feats ~13.8 GB, coords ~0.02 GB)
+  Loaded 5000/10595 slides (feats ~17.3 GB, coords ~0.02 GB)
+  Loaded 6000/10595 slides (feats ~20.7 GB, coords ~0.03 GB)
+  Loaded 7000/10595 slides (feats ~24.2 GB, coords ~0.03 GB)
+  Loaded 8000/10595 slides (feats ~27.6 GB, coords ~0.04 GB)
+  Loaded 9000/10595 slides (feats ~31.1 GB, coords ~0.04 GB)
+  Loaded 10000/10595 slides (feats ~34.6 GB, coords ~0.04 GB)
+  Preloaded 10595 slides, feats ~36.6 GB; coords ~0.05 GB (10595 slides with coords)
+  train: 8478 slides, 2120 batches | val: 2117 slides, 530 batches
+  Fold 3 | Epoch   1/30 | train_loss=2.0839 | val_loss=1.5386 | qwk=0.3759 | bal_acc=0.2969 | mae=1.379 | train=42.7s (199 slides/s, 89404 patches/s) | val=8.7s (243 slides/s, 108771 patches/s) | epoch=51.4s
+  Fold 3 | Epoch   2/30 | train_loss=1.0155 | val_loss=0.9056 | qwk=0.8478 | bal_acc=0.5782 | mae=0.492 | train=39.9s (213 slides/s, 95688 patches/s) | val=6.1s (347 slides/s, 155025 patches/s) | epoch=46.0s
+  Fold 3 | Epoch   3/30 | train_loss=0.8244 | val_loss=0.7615 | qwk=0.8593 | bal_acc=0.6227 | mae=0.444 | train=42.6s (199 slides/s, 89623 patches/s) | val=5.9s (358 slides/s, 160104 patches/s) | epoch=48.5s
+  Fold 3 | Epoch   4/30 | train_loss=0.7909 | val_loss=0.8378 | qwk=0.8618 | bal_acc=0.6075 | mae=0.451 | train=42.5s (200 slides/s, 89911 patches/s) | val=5.9s (360 slides/s, 161272 patches/s) | epoch=48.3s
+  Fold 3 | Epoch   5/30 | train_loss=0.7825 | val_loss=0.7645 | qwk=0.8563 | bal_acc=0.6540 | mae=0.432 | train=42.6s (199 slides/s, 89549 patches/s) | val=5.8s (362 slides/s, 162099 patches/s) | epoch=48.5s
+  Fold 3 | Epoch   6/30 | train_loss=0.7813 | val_loss=0.7514 | qwk=0.8585 | bal_acc=0.6687 | mae=0.405 | train=43.3s (196 slides/s, 88226 patches/s) | val=5.9s (360 slides/s, 161154 patches/s) | epoch=49.1s
+  Fold 3 | Epoch   7/30 | train_loss=0.7354 | val_loss=0.8004 | qwk=0.8611 | bal_acc=0.6403 | mae=0.409 | train=42.7s (199 slides/s, 89441 patches/s) | val=5.9s (359 slides/s, 160492 patches/s) | epoch=48.6s
+  Fold 3 | Epoch   8/30 | train_loss=0.6899 | val_loss=0.8012 | qwk=0.8596 | bal_acc=0.6520 | mae=0.399 | train=44.5s (190 slides/s, 85698 patches/s) | val=6.1s (349 slides/s, 156085 patches/s) | epoch=50.6s
+  Fold 3 | Epoch   9/30 | train_loss=0.6523 | val_loss=0.7394 | qwk=0.8656 | bal_acc=0.6591 | mae=0.390 | train=43.9s (193 slides/s, 86955 patches/s) | val=6.0s (352 slides/s, 157413 patches/s) | epoch=49.9s
+  Fold 3 | Epoch  10/30 | train_loss=0.6051 | val_loss=0.7701 | qwk=0.8719 | bal_acc=0.6630 | mae=0.381 | train=43.7s (194 slides/s, 87331 patches/s) | val=5.9s (359 slides/s, 160721 patches/s) | epoch=49.6s
+  Fold 3 | Epoch  11/30 | train_loss=0.5623 | val_loss=0.8131 | qwk=0.8616 | bal_acc=0.6746 | mae=0.418 | train=43.6s (194 slides/s, 87459 patches/s) | val=5.7s (371 slides/s, 165932 patches/s) | epoch=49.4s
+  Fold 3 | Epoch  12/30 | train_loss=0.5141 | val_loss=0.7804 | qwk=0.8641 | bal_acc=0.6690 | mae=0.393 | train=43.5s (195 slides/s, 87844 patches/s) | val=6.0s (352 slides/s, 157309 patches/s) | epoch=49.5s
+  Fold 3 | Epoch  13/30 | train_loss=0.4792 | val_loss=0.7704 | qwk=0.8660 | bal_acc=0.6744 | mae=0.391 | train=44.3s (191 slides/s, 86211 patches/s) | val=6.0s (352 slides/s, 157656 patches/s) | epoch=50.3s
+  Fold 3 | Epoch  14/30 | train_loss=0.4109 | val_loss=0.7795 | qwk=0.8738 | bal_acc=0.7009 | mae=0.388 | train=43.7s (194 slides/s, 87279 patches/s) | val=6.0s (355 slides/s, 158880 patches/s) | epoch=49.7s
+  Fold 3 | Epoch  15/30 | train_loss=0.3795 | val_loss=0.8119 | qwk=0.8762 | bal_acc=0.6876 | mae=0.388 | train=43.5s (195 slides/s, 87680 patches/s) | val=5.8s (365 slides/s, 163224 patches/s) | epoch=49.3s
+  Fold 3 | Epoch  16/30 | train_loss=0.3342 | val_loss=0.7851 | qwk=0.8692 | bal_acc=0.6754 | mae=0.396 | train=43.5s (195 slides/s, 87797 patches/s) | val=6.1s (347 slides/s, 155323 patches/s) | epoch=49.6s
+  Fold 3 | Epoch  17/30 | train_loss=0.3003 | val_loss=0.7906 | qwk=0.8831 | bal_acc=0.7241 | mae=0.334 | train=44.7s (190 slides/s, 85451 patches/s) | val=5.9s (358 slides/s, 160083 patches/s) | epoch=50.6s
+  Fold 3 | Epoch  18/30 | train_loss=0.2613 | val_loss=0.8195 | qwk=0.8795 | bal_acc=0.7370 | mae=0.339 | train=43.9s (193 slides/s, 87000 patches/s) | val=6.0s (352 slides/s, 157545 patches/s) | epoch=49.9s
+  Fold 3 | Epoch  19/30 | train_loss=0.2279 | val_loss=0.7664 | qwk=0.8802 | bal_acc=0.7265 | mae=0.349 | train=44.2s (192 slides/s, 86354 patches/s) | val=5.9s (358 slides/s, 160368 patches/s) | epoch=50.1s
+  Fold 3 | Epoch  20/30 | train_loss=0.1924 | val_loss=0.8114 | qwk=0.8748 | bal_acc=0.7453 | mae=0.333 | train=43.4s (195 slides/s, 87970 patches/s) | val=6.0s (355 slides/s, 158771 patches/s) | epoch=49.4s
+  Fold 3 | Epoch  21/30 | train_loss=0.1688 | val_loss=0.8474 | qwk=0.8743 | bal_acc=0.7458 | mae=0.338 | train=44.3s (192 slides/s, 86244 patches/s) | val=6.1s (349 slides/s, 156303 patches/s) | epoch=50.3s
+  Fold 3 | Epoch  22/30 | train_loss=0.1418 | val_loss=0.8434 | qwk=0.8779 | bal_acc=0.7330 | mae=0.337 | train=44.4s (191 slides/s, 85944 patches/s) | val=6.0s (354 slides/s, 158578 patches/s) | epoch=50.4s
+  Fold 3 | Epoch  23/30 | train_loss=0.1204 | val_loss=0.8411 | qwk=0.8797 | bal_acc=0.7465 | mae=0.336 | train=43.9s (193 slides/s, 86947 patches/s) | val=5.9s (359 slides/s, 160757 patches/s) | epoch=49.8s
+  Fold 3 | Epoch  24/30 | train_loss=0.1024 | val_loss=0.8673 | qwk=0.8833 | bal_acc=0.7543 | mae=0.320 | train=43.8s (194 slides/s, 87157 patches/s) | val=6.1s (349 slides/s, 156033 patches/s) | epoch=49.9s
+  Fold 3 | Epoch  25/30 | train_loss=0.0930 | val_loss=0.8609 | qwk=0.8791 | bal_acc=0.7600 | mae=0.323 | train=44.3s (191 slides/s, 86107 patches/s) | val=6.0s (354 slides/s, 158504 patches/s) | epoch=50.3s
+  Fold 3 | Epoch  26/30 | train_loss=0.0762 | val_loss=0.9258 | qwk=0.8825 | bal_acc=0.7615 | mae=0.318 | train=44.1s (192 slides/s, 86547 patches/s) | val=6.0s (355 slides/s, 158683 patches/s) | epoch=50.1s
+  Fold 3 | Epoch  27/30 | train_loss=0.0708 | val_loss=0.9063 | qwk=0.8790 | bal_acc=0.7539 | mae=0.325 | train=43.5s (195 slides/s, 87786 patches/s) | val=5.9s (357 slides/s, 159587 patches/s) | epoch=49.4s
+  Fold 3 | Epoch  28/30 | train_loss=0.0659 | val_loss=0.9268 | qwk=0.8814 | bal_acc=0.7606 | mae=0.321 | train=44.0s (193 slides/s, 86698 patches/s) | val=5.9s (357 slides/s, 159584 patches/s) | epoch=50.0s
+  Fold 3 | Epoch  29/30 | train_loss=0.0627 | val_loss=0.9071 | qwk=0.8835 | bal_acc=0.7578 | mae=0.318 | train=44.0s (192 slides/s, 86663 patches/s) | val=6.0s (356 slides/s, 159138 patches/s) | epoch=50.0s
+  Fold 3 | Epoch  30/30 | train_loss=0.0627 | val_loss=0.8916 | qwk=0.8879 | bal_acc=0.7611 | mae=0.312 | train=43.6s (194 slides/s, 87465 patches/s) | val=5.6s (375 slides/s, 167867 patches/s) | epoch=49.3s
+
+  FOLD 3 END | walltime=1569.4s (26.2 min)
+
+============================================================
+FOLD 4 START
+============================================================
+  train: 8472, val: 2123
+  Preloading 10595 slides for this fold...
+  Loaded 1000/10595 slides (feats ~3.4 GB, coords ~0.00 GB)
+  Loaded 2000/10595 slides (feats ~6.8 GB, coords ~0.01 GB)
+  Loaded 3000/10595 slides (feats ~10.2 GB, coords ~0.01 GB)
+  Loaded 4000/10595 slides (feats ~13.7 GB, coords ~0.02 GB)
+  Loaded 5000/10595 slides (feats ~17.2 GB, coords ~0.02 GB)
+  Loaded 6000/10595 slides (feats ~20.6 GB, coords ~0.03 GB)
+  Loaded 7000/10595 slides (feats ~24.1 GB, coords ~0.03 GB)
+  Loaded 8000/10595 slides (feats ~27.5 GB, coords ~0.04 GB)
+  Loaded 9000/10595 slides (feats ~31.0 GB, coords ~0.04 GB)
+  Loaded 10000/10595 slides (feats ~34.5 GB, coords ~0.04 GB)
+  Preloaded 10595 slides, feats ~36.6 GB; coords ~0.05 GB (10595 slides with coords)
+  train: 8472 slides, 2118 batches | val: 2123 slides, 531 batches
+  Fold 4 | Epoch   1/30 | train_loss=2.0270 | val_loss=1.5487 | qwk=0.4702 | bal_acc=0.3296 | mae=1.154 | train=44.6s (190 slides/s, 85335 patches/s) | val=9.0s (236 slides/s, 106393 patches/s) | epoch=53.6s
+  Fold 4 | Epoch   2/30 | train_loss=1.0070 | val_loss=0.8000 | qwk=0.8588 | bal_acc=0.6009 | mae=0.449 | train=41.4s (205 slides/s, 92005 patches/s) | val=5.7s (370 slides/s, 166794 patches/s) | epoch=47.1s
+  Fold 4 | Epoch   3/30 | train_loss=0.8387 | val_loss=0.7585 | qwk=0.8691 | bal_acc=0.6416 | mae=0.420 | train=43.0s (197 slides/s, 88627 patches/s) | val=5.9s (357 slides/s, 161065 patches/s) | epoch=48.9s
+  Fold 4 | Epoch   4/30 | train_loss=0.8128 | val_loss=0.7494 | qwk=0.8605 | bal_acc=0.6246 | mae=0.422 | train=42.8s (198 slides/s, 88988 patches/s) | val=5.9s (362 slides/s, 163177 patches/s) | epoch=48.7s
+  Fold 4 | Epoch   5/30 | train_loss=0.7894 | val_loss=0.8887 | qwk=0.8353 | bal_acc=0.5829 | mae=0.505 | train=42.4s (200 slides/s, 89757 patches/s) | val=6.0s (352 slides/s, 158534 patches/s) | epoch=48.5s
+  Fold 4 | Epoch   6/30 | train_loss=0.7909 | val_loss=0.8896 | qwk=0.7875 | bal_acc=0.5750 | mae=0.527 | train=43.8s (193 slides/s, 86957 patches/s) | val=6.0s (355 slides/s, 159991 patches/s) | epoch=49.8s
+  Fold 4 | Epoch   7/30 | train_loss=0.7269 | val_loss=0.8273 | qwk=0.8086 | bal_acc=0.6004 | mae=0.486 | train=42.7s (199 slides/s, 89218 patches/s) | val=5.7s (370 slides/s, 166968 patches/s) | epoch=48.4s
+  Fold 4 | Epoch   8/30 | train_loss=0.6879 | val_loss=0.7022 | qwk=0.8792 | bal_acc=0.6869 | mae=0.363 | train=43.1s (197 slides/s, 88394 patches/s) | val=6.0s (355 slides/s, 159848 patches/s) | epoch=49.1s
+  Fold 4 | Epoch   9/30 | train_loss=0.6329 | val_loss=0.7508 | qwk=0.8786 | bal_acc=0.6783 | mae=0.379 | train=43.3s (195 slides/s, 87842 patches/s) | val=5.9s (362 slides/s, 163132 patches/s) | epoch=49.2s
+  Fold 4 | Epoch  10/30 | train_loss=0.5968 | val_loss=0.8140 | qwk=0.8575 | bal_acc=0.6543 | mae=0.417 | train=43.2s (196 slides/s, 88135 patches/s) | val=5.9s (359 slides/s, 162013 patches/s) | epoch=49.1s
+  Fold 4 | Epoch  11/30 | train_loss=0.5408 | val_loss=0.7957 | qwk=0.8716 | bal_acc=0.6613 | mae=0.402 | train=43.2s (196 slides/s, 88177 patches/s) | val=5.9s (360 slides/s, 162454 patches/s) | epoch=49.1s
+  Fold 4 | Epoch  12/30 | train_loss=0.4932 | val_loss=0.7981 | qwk=0.8721 | bal_acc=0.6634 | mae=0.384 | train=43.3s (196 slides/s, 87869 patches/s) | val=5.8s (364 slides/s, 163971 patches/s) | epoch=49.2s
+  Fold 4 | Epoch  13/30 | train_loss=0.4509 | val_loss=0.7212 | qwk=0.8703 | bal_acc=0.6962 | mae=0.374 | train=42.9s (198 slides/s, 88843 patches/s) | val=5.7s (376 slides/s, 169305 patches/s) | epoch=48.5s
+  Fold 4 | Epoch  14/30 | train_loss=0.4042 | val_loss=0.7546 | qwk=0.8787 | bal_acc=0.6703 | mae=0.366 | train=41.6s (203 slides/s, 91457 patches/s) | val=5.6s (377 slides/s, 169744 patches/s) | epoch=47.3s
+  Fold 4 | Epoch  15/30 | train_loss=0.3633 | val_loss=0.6838 | qwk=0.8868 | bal_acc=0.7171 | mae=0.331 | train=41.8s (203 slides/s, 91160 patches/s) | val=5.7s (376 slides/s, 169289 patches/s) | epoch=47.4s
+  Fold 4 | Epoch  16/30 | train_loss=0.3262 | val_loss=0.8433 | qwk=0.8656 | bal_acc=0.6991 | mae=0.381 | train=41.8s (203 slides/s, 91117 patches/s) | val=5.8s (367 slides/s, 165283 patches/s) | epoch=47.6s
+  Fold 4 | Epoch  17/30 | train_loss=0.2780 | val_loss=0.8262 | qwk=0.8740 | bal_acc=0.7269 | mae=0.364 | train=43.3s (195 slides/s, 87844 patches/s) | val=5.6s (380 slides/s, 171217 patches/s) | epoch=48.9s
+  Fold 4 | Epoch  18/30 | train_loss=0.2374 | val_loss=0.7326 | qwk=0.8909 | bal_acc=0.7518 | mae=0.311 | train=42.7s (198 slides/s, 89146 patches/s) | val=5.8s (364 slides/s, 164247 patches/s) | epoch=48.5s
+  Fold 4 | Epoch  19/30 | train_loss=0.1887 | val_loss=0.7833 | qwk=0.8889 | bal_acc=0.7425 | mae=0.321 | train=41.9s (202 slides/s, 90944 patches/s) | val=5.7s (372 slides/s, 167889 patches/s) | epoch=47.6s
+  Fold 4 | Epoch  20/30 | train_loss=0.1622 | val_loss=0.8456 | qwk=0.8869 | bal_acc=0.7299 | mae=0.328 | train=42.4s (200 slides/s, 89762 patches/s) | val=5.7s (374 slides/s, 168591 patches/s) | epoch=48.1s
+  Fold 4 | Epoch  21/30 | train_loss=0.1382 | val_loss=0.8048 | qwk=0.8915 | bal_acc=0.7523 | mae=0.305 | train=41.8s (203 slides/s, 91161 patches/s) | val=5.8s (369 slides/s, 166324 patches/s) | epoch=47.5s
+  Fold 4 | Epoch  22/30 | train_loss=0.1163 | val_loss=0.8532 | qwk=0.8849 | bal_acc=0.7451 | mae=0.329 | train=43.1s (197 slides/s, 88423 patches/s) | val=5.8s (368 slides/s, 165730 patches/s) | epoch=48.8s
+  Fold 4 | Epoch  23/30 | train_loss=0.0959 | val_loss=0.8612 | qwk=0.8914 | bal_acc=0.7443 | mae=0.311 | train=42.5s (199 slides/s, 89569 patches/s) | val=5.8s (365 slides/s, 164517 patches/s) | epoch=48.3s
+  Fold 4 | Epoch  24/30 | train_loss=0.0775 | val_loss=0.9402 | qwk=0.8864 | bal_acc=0.7491 | mae=0.320 | train=43.0s (197 slides/s, 88459 patches/s) | val=5.9s (359 slides/s, 161705 patches/s) | epoch=49.0s
+  Fold 4 | Epoch  25/30 | train_loss=0.0754 | val_loss=0.9026 | qwk=0.8968 | bal_acc=0.7659 | mae=0.297 | train=43.2s (196 slides/s, 88228 patches/s) | val=5.7s (375 slides/s, 169103 patches/s) | epoch=48.8s
+  Fold 4 | Epoch  26/30 | train_loss=0.0588 | val_loss=0.9071 | qwk=0.8921 | bal_acc=0.7593 | mae=0.305 | train=42.2s (201 slides/s, 90292 patches/s) | val=5.6s (380 slides/s, 171095 patches/s) | epoch=47.8s
+  Fold 4 | Epoch  27/30 | train_loss=0.0525 | val_loss=0.9011 | qwk=0.9013 | bal_acc=0.7689 | mae=0.291 | train=42.0s (202 slides/s, 90612 patches/s) | val=5.6s (382 slides/s, 172059 patches/s) | epoch=47.6s
+  Fold 4 | Epoch  28/30 | train_loss=0.0483 | val_loss=0.9280 | qwk=0.8987 | bal_acc=0.7723 | mae=0.288 | train=42.4s (200 slides/s, 89803 patches/s) | val=5.7s (372 slides/s, 167615 patches/s) | epoch=48.1s
+  Fold 4 | Epoch  29/30 | train_loss=0.0485 | val_loss=0.9241 | qwk=0.8952 | bal_acc=0.7643 | mae=0.298 | train=42.6s (199 slides/s, 89321 patches/s) | val=5.7s (370 slides/s, 166816 patches/s) | epoch=48.4s
+  Fold 4 | Epoch  30/30 | train_loss=0.0516 | val_loss=0.9524 | qwk=0.8987 | bal_acc=0.7649 | mae=0.293 | train=41.7s (203 slides/s, 91242 patches/s) | val=5.7s (370 slides/s, 166800 patches/s) | epoch=47.5s
+
+  FOLD 4 END | walltime=1542.3s (25.7 min)
+
+============================================================
+CV SUMMARY
+============================================================
+  Total walltime: 7760.9s (129.3 min)
+  qwk                 : 0.8953 ± 0.0081
+  balanced_accuracy   : 0.7558 ± 0.0090
+  accuracy            : 0.7902 ± 0.0061
+  mae                 : 0.3049 ± 0.0103
+
+Per-fold results:
+ accuracy  balanced_accuracy      qwk      mae     loss  n_patches  n_fully_masked  epoch  fold
+ 0.786591           0.747594 0.886001 0.313031 0.824396     958212               0     23     0
+ 0.790665           0.752345 0.904569 0.296558 0.902551     951538               0     26     1
+ 0.782609           0.748954 0.896692 0.311437 0.865228     950757               0     26     2
+ 0.792159           0.761122 0.887894 0.312234 0.891647     947107               0     30     3
+ 0.798870           0.768917 0.901285 0.291098 0.901089     956982               0     27     4
+[2026-04-09 00:43:59] Done: Thu Apr  9 00:43:59 CEST 2026
+[2026-04-09 00:43:59] [CLEANUP] starting
+[2026-04-09 00:44:06] [CLEANUP] done

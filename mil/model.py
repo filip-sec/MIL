@@ -147,10 +147,146 @@ class OrdinalMIL(nn.Module):
         return (probs > 0.5).sum(dim=1).long()
 
 
+class _CLAMAttnGated(nn.Module):
+    """Attention branch inside CLAM (Attn_Net_Gated)."""
+
+    def __init__(self, dim_in: int, dim_attn: int, dropout: float) -> None:
+        super().__init__()
+        self.attention_a = nn.Sequential(nn.Linear(dim_in, dim_attn), nn.Tanh())
+        self.attention_b = nn.Sequential(nn.Linear(dim_in, dim_attn), nn.Sigmoid())
+        self.attention_c = nn.Linear(dim_attn, 1)
+        self.drop = nn.Dropout(dropout) if dropout > 0 else nn.Identity()
+
+    def forward(self, h: torch.Tensor) -> torch.Tensor:
+        a = self.drop(self.attention_a(h))
+        b = self.drop(self.attention_b(h))
+        return self.attention_c(a * b).squeeze(-1)
+
+
+class CLAM_SB(nn.Module):
+    """CLAM single-branch (Lu et al.): gated attention + bag CE + top-k instance supervision."""
+
+    def __init__(
+        self,
+        feat_dim: int,
+        num_classes: int = 6,
+        mid_dim: int = 512,
+        attn_dim: int = 256,
+        dropout: float = 0.25,
+        k_sample: int = 8,
+        subtyping: bool = False,
+    ) -> None:
+        super().__init__()
+        self.n_classes = num_classes
+        self.k_sample = k_sample
+        self.subtyping = subtyping
+        self.fc = nn.Sequential(
+            nn.Linear(feat_dim, mid_dim),
+            nn.ReLU(inplace=True),
+            nn.Dropout(dropout),
+        )
+        self.attn = _CLAMAttnGated(mid_dim, attn_dim, dropout)
+        self.bag_classifier = nn.Linear(mid_dim, num_classes)
+        self.instance_classifiers = nn.ModuleList([nn.Linear(mid_dim, 2) for _ in range(num_classes)])
+        self.instance_loss_fn = nn.CrossEntropyLoss()
+
+    @staticmethod
+    def _inst_eval(
+        A: torch.Tensor,
+        h: torch.Tensor,
+        classifier: nn.Module,
+        loss_fn: nn.Module,
+        k_sample: int,
+    ) -> torch.Tensor:
+        n = h.size(0)
+        k = min(k_sample, n)
+        if k < 1:
+            return h.sum() * 0.0
+        top_p = h[torch.topk(A, k).indices]
+        top_n = h[torch.topk(-A, k).indices]
+        device = h.device
+        p_targets = torch.ones(k, device=device, dtype=torch.long)
+        n_targets = torch.zeros(k, device=device, dtype=torch.long)
+        logits = classifier(torch.cat([top_p, top_n], dim=0))
+        targets = torch.cat([p_targets, n_targets], dim=0)
+        return loss_fn(logits, targets)
+
+    def _inst_eval_out(
+        self,
+        A: torch.Tensor,
+        h: torch.Tensor,
+        classifier: nn.Module,
+        loss_fn: nn.Module,
+        k_sample: int,
+    ) -> torch.Tensor:
+        n = h.size(0)
+        k = min(k_sample, n)
+        if k < 1:
+            return h.sum() * 0.0
+        top_p = h[torch.topk(A, k).indices]
+        logits = classifier(top_p)
+        targets = torch.zeros(k, device=h.device, dtype=torch.long)
+        return loss_fn(logits, targets)
+
+    def _instance_loss_batch(
+        self,
+        h: torch.Tensor,
+        A: torch.Tensor,
+        labels: torch.Tensor,
+        mask: torch.Tensor | None,
+    ) -> torch.Tensor:
+        total = labels.new_zeros(())
+        bsz = h.size(0)
+        denom = 0
+        for b in range(bsz):
+            if mask is not None:
+                valid = mask[b]
+                if not bool(valid.any()):
+                    continue
+                hb = h[b, valid]
+                Ab = A[b, valid]
+            else:
+                hb, Ab = h[b], A[b]
+            y = int(labels[b].item())
+            for i, clf in enumerate(self.instance_classifiers):
+                if i == y:
+                    total = total + self._inst_eval(Ab, hb, clf, self.instance_loss_fn, self.k_sample)
+                    denom += 1
+                elif self.subtyping:
+                    total = total + self._inst_eval_out(Ab, hb, clf, self.instance_loss_fn, self.k_sample)
+                    denom += 1
+        if denom > 0:
+            total = total / denom
+        return total
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        mask: torch.Tensor | None = None,
+        labels: torch.Tensor | None = None,
+        return_attention: bool = False,
+    ):
+        h = self.fc(x)
+        A = self.attn(h)
+        A = _mask_fill(A, mask)
+        A_sm = torch.softmax(A, dim=1)
+        M = (A_sm.unsqueeze(-1) * h).sum(dim=1)
+        logits = self.bag_classifier(M)
+        if labels is not None:
+            inst = self._instance_loss_batch(h, A_sm, labels, mask)
+            if return_attention:
+                return logits, inst, A_sm
+            return logits, inst
+        if return_attention:
+            return logits, A_sm
+        return logits
+
+
 MODEL_REGISTRY = {
     "attention": AttentionMIL,
     "gated": GatedAttentionMIL,
     "ordinal": OrdinalMIL,
+    "clam": CLAM_SB,
 }
 
 

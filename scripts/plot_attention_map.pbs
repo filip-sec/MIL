@@ -1,0 +1,74 @@
+#!/bin/bash
+#PBS -N mil_heatmap
+#PBS -l select=1:ncpus=2:mem=24gb:scratch_local=1gb
+#PBS -l walltime=00:30:00
+#
+# Attention heatmap from MIL/CLAM checkpoint + TRIDENT .h5 (no full WSI encoder run).
+#
+# Submit from repo on MetaCentrum:
+#   cd /storage/brno2/home/filipsec/MIL
+#   export SLIDE_ID=163fabe883fcd17de4f899ca8ede45a8
+#   export CHECKPOINT="$MIL/checkpoints/features_uni_v2_clam_compare/fold0_best.pt"
+#   export FEAT_DIR="$MIL/data/trident_out/panda_uni_v2_grandqc_20x_256_ov0/20x_256px_0px_overlap/features_uni_v2"
+#   export WSI_DIR="$MIL/data/raw/train_images"   # optional; omit for bar-only plot
+#   export OUTPUT="$MIL/figures/heatmap_${SLIDE_ID}.png"
+#   export RASTER="$MIL/figures/heatmap_${SLIDE_ID}_full.tif"   # optional full-slide pyramid overlay
+#   export MAX_SIDE=6144 GAUSSIAN_SIGMA=4   # lower sigma = sharper; use "off" for none
+#   export MASK_MODE=patches                # none | patches (clip halo) | tissue (Otsu heuristic)
+#   export PATCH_MASK_DILATE=0
+#   export COORDS_DIR=""   # optional if coords not inside each feat .h5
+#   qsub -V scripts/plot_attention_map.pbs
+#
+set -euo pipefail
+
+MIL="/storage/brno2/home/filipsec/MIL"
+TRIDENT_ENV="/storage/brno2/home/filipsec/.conda/envs/trident"
+PYTHON="$TRIDENT_ENV/bin/python"
+
+SLIDE_ID="${SLIDE_ID:?SLIDE_ID not set}"
+FEAT_DIR="${FEAT_DIR:?FEAT_DIR not set}"
+CHECKPOINT="${CHECKPOINT:?CHECKPOINT not set}"
+
+WSI_DIR="${WSI_DIR:-$MIL/data/raw/train_images}"
+OUTPUT="${OUTPUT:-$MIL/figures/heatmap_${SLIDE_ID}.png}"
+RASTER="${RASTER:-}"
+MAX_SIDE="${MAX_SIDE:-4096}"
+GAUSSIAN_SIGMA="${GAUSSIAN_SIGMA:-4}"
+MASK_MODE="${MASK_MODE:-patches}"
+PATCH_MASK_DILATE="${PATCH_MASK_DILATE:-0}"
+COORDS_DIR="${COORDS_DIR:-}"
+DEVICE="${DEVICE:-cpu}"
+VIS_LEVEL="${VIS_LEVEL:-}"
+
+[[ -x "$PYTHON" ]] || { echo "ERROR: $PYTHON not executable"; exit 1; }
+[[ -d "$MIL" ]] || { echo "ERROR: MIL dir missing: $MIL"; exit 1; }
+
+mkdir -p "$(dirname "$OUTPUT")" "$MIL/logs"
+LOGFILE="$MIL/logs/plot_attention_${PBS_JOBID:-manual}.log"
+exec > >(tee -a "$LOGFILE") 2>&1
+
+echo "[$(date)] host=$(hostname) SLIDE_ID=$SLIDE_ID"
+echo "CHECKPOINT=$CHECKPOINT"
+echo "FEAT_DIR=$FEAT_DIR"
+echo "WSI_DIR=$WSI_DIR OUTPUT=$OUTPUT DEVICE=$DEVICE MASK_MODE=$MASK_MODE GAUSSIAN_SIGMA=$GAUSSIAN_SIGMA"
+
+cd "$MIL"
+CMD=( "$PYTHON" scripts/plot_attention_map.py
+  --slide-id "$SLIDE_ID"
+  --checkpoint "$CHECKPOINT"
+  --feat-dir "$FEAT_DIR"
+  --output "$OUTPUT"
+  --device "$DEVICE"
+  --thumb-size 512
+  --max-side "$MAX_SIDE"
+  --gaussian-sigma "$GAUSSIAN_SIGMA"
+  --mask-mode "$MASK_MODE"
+  --patch-mask-dilate "$PATCH_MASK_DILATE"
+)
+[[ -n "$RASTER" ]] && CMD+=( --raster-out "$RASTER" )
+[[ -n "$VIS_LEVEL" ]] && CMD+=( --vis-level "$VIS_LEVEL" )
+[[ -n "$WSI_DIR" && -d "$WSI_DIR" ]] && CMD+=( --wsi-dir "$WSI_DIR" )
+[[ -n "$COORDS_DIR" && -d "$COORDS_DIR" ]] && CMD+=( --coords-dir "$COORDS_DIR" )
+
+"${CMD[@]}"
+echo "[$(date)] wrote $OUTPUT"

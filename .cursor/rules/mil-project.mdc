@@ -1,0 +1,91 @@
+---
+description: "PANDA WSI MIL project — pathology foundation model ensemble with attention-gated MIL aggregation over TRIDENT features."
+alwaysApply: false
+---
+
+# PANDA WSI MIL — project rule
+
+You are helping build a slide-level classifier for prostate biopsies (ISUP grade 0–5) from the Kaggle PANDA dataset. Features are extracted offline by TRIDENT; the PyTorch model consumes pre-computed patch features from H5 files and aggregates them to a slide-level prediction.
+
+## Project layout
+
+- `MIL_ROOT` resolved from `$MIL` env var or by walking up until `data/` exists.
+- `data/raw/train.csv` — labels (`image_id`, `isup_grade`, `gleason_score`, `data_provider`).
+- `data/raw/train_images/<id>.tiff` — WSIs.
+- `data/splits/panda_5fold_stratified.csv` — columns `image_id`, `fold` (0–4).
+- `data/trident_out/.../features_uni_v2/<slide_id>.h5` — patch features, key `features`, shape `(N_patches, feat_dim)`. Fallback: `data/trident_out_makeup_otsu/...`.
+- `notebooks/mil_workflow.ipynb` — main workflow.
+- `model/` — modular PyTorch model (current focus: PFM-ensemble MIL, see below).
+- `scripts/` — PBS + helpers (`trident_chunk_extract.pbs`, `make_panda_5fold_splits.py`, …).
+
+## Model architecture (PFM-ensemble MIL)
+
+Per-slide input: six pathology foundation model (PFM) feature streams, all at `d = 1536`. Fixed PFM set:
+
+1. UNI2-h (MahmoodLab)
+2. Prov-GigaPath (Microsoft)
+3. H-Optimus-0 (Bioptimus)
+4. H-Optimus-1 (Bioptimus)
+5. H0-mini (Bioptimus, distilled)
+6. OpenMidnight (SophontAI / Kaiko)
+
+Forward pass: `[B, N, 6, 1536]` → per-stream LayerNorm → concat `[B, N, 9216]` → Adaptive Prompt Gate (sigmoid Hadamard, SE-style, per-channel, reduction r=16, hidden 576) → `[B, N, 9216]` → attention-MIL pool (hidden 128) → `[B, 9216]` → Linear(9216, 6) → logits.
+
+The gate is applied **per tile** (before MIL pool), to the **clean** pre-LN concat (SE semantics). Forward returns `logits`, MIL `attn` `[B, N]`, and `gate_per_stream` `[B, N, 6]` for interpretability.
+
+Training-only regularisation inside the gate: per-stream dropout (p=0.2, zeros entire 1536-blocks) + feature dropout (p=0.1). Both respect `self.training`.
+
+## Module decomposition (in `model/`)
+
+- `config.py` → `PFMEnsembleConfig` (dataclass, derived `concat_dim`, `gate_hidden` in `__post_init__`).
+- `per_stream_norm.py` → `PerStreamLayerNorm(num_fms, feat_dim)`.
+- `gate.py` → `StreamDropout`, `AdaptivePromptGate` (returns `(z_gated, gate_full)`; has `@staticmethod per_stream_importance`).
+- `mil.py` → `MILAttentionPool(in_dim, hidden=128)` (returns `(bag, attn)`, masked softmax with `-1e9`).
+- `head.py` → `TaskHead(in_dim, num_classes)` — linear only, no loss.
+- `full_model.py` → `PFMEnsembleMIL(cfg)` returning `ModelOutputs` dataclass with `logits`, `attn`, `gate_per_stream`, optional `gate_full`.
+
+Keep one class per file. Sub-modules take plain args in `__init__` so they are unit-testable without the config.
+
+## Coding conventions
+
+- **Paths:** use `pathlib.Path`. Cast with `str(path)` only where needed (OpenSlide, h5py).
+- **Labels:** `train_labels` is indexed by `image_id`; use `train_labels.loc[slide_id, "isup_grade"]`.
+- **Splits:** fold 0 = val by default; filter slide lists to those with an `.h5` in `feat_dir`.
+- **Device:** `device = "cuda" if torch.cuda.is_available() else "cpu"`.
+- **Loss:** `CrossEntropyLoss` lives in the training loop, not inside any module.
+- **No BatchNorm anywhere.** LayerNorm only — safe at B=1 and with variable N.
+- **OpenSlide:** always close slides with `try/finally`.
+- **Type hints** on public signatures. Docstrings name tensor shapes explicitly.
+- **Shape asserts** at the top of every `forward`. Padded tiles handled via bool mask `[B, N]`, True = real.
+
+## Dataset conventions
+
+- `H5BagDataset` yields `(feats, label, slide_id)`; for the ensemble it returns a stacked `[N, 6, 1536]` tensor (load six H5 files, `np.stack(axis=1)`).
+- `collate_bags` pads `N` to `N_max`, returns `(feats, mask, labels, ids)`; mask is `[B, N_max]` bool.
+- Batch size 8, `num_workers=0` unless profiling shows otherwise. Labels are integer ISUP 0–5.
+
+## Evaluation
+
+Report accuracy, balanced accuracy, and quadratic-weighted Cohen's kappa (ordinal, PANDA's official metric). Track best-val kappa for checkpointing. MAE optional for ordinal diagnostics.
+
+## Defaults locked in
+
+- Raw concat (no avg-pool compression) — MIL aggregator is cheap, information preservation wins.
+- Per-stream pre-LayerNorm (6 separate LNs) — different PFMs have wildly different activation magnitudes.
+- Per-channel sigmoid gate at `r=16` → ~12M trainable params.
+- Gate alternatives (`SoftmaxStreamGate`, `CrossStreamAttentionGate`) are ablations, not defaults.
+
+## When helping with this project
+
+1. Before suggesting architectural changes, check if the decision is already locked above — if so, default to preserving it and flag the alternative rather than silently swapping.
+2. For new modules, match the existing decomposition style: one class per file, plain-arg `__init__`, shape-asserting `forward` with docstring shapes.
+3. For notebook edits, keep `mil_workflow.ipynb` runnable top-to-bottom in this order: `MIL_ROOT` → imports → `data_dir`/`train_labels` → splits → `feat_dir` → `train_ids`/`val_ids` → Dataset/collate/model → training loop.
+4. When proposing a new MIL algorithm, follow the skill doc's structure: state aggregation, head/loss, forward pass in words, masking, minimal code diff.
+5. Don't assume online feature extraction — features are always pre-extracted by TRIDENT.
+6. If a slide is missing an `.h5`, the fallback is `trident_out_makeup_otsu/`; singletons live in `data/lists/singletons/<id>.csv` (column `wsi` = `<id>.tiff`).
+
+## Out of scope
+
+- Feature extraction (TRIDENT handles it; don't write extraction code unless explicitly asked).
+- Online PFM backbones (no wrapping of UNI/GigaPath/etc. in PyTorch modules).
+- PDF/DOCX/PPTX generation unless explicitly asked.

@@ -1,0 +1,141 @@
+name: encoders
+encoders:
+  - key: uni_v2
+    display_name: UNI v2
+    repo_id: MahmoodLab/UNI2-h
+    feature_dim: 1536
+    feature_dir_name: features_uni_v2
+    token_files: []
+    aliases:
+      - uni2
+    gated: true
+    noncommercial: false
+    patch_size: 256
+    feat_batch_size: 96
+    tile_input: Native TRIDENT 256px patch encoder output.
+    extraction_mode: trident_all
+    downstream_route: mil_bag
+    notes: Historical production encoder in this repo.
+  - key: virchow2
+    display_name: Virchow2
+    repo_id: paige-ai/Virchow2
+    feature_dim: 2560
+    feature_dir_name: features_virchow2
+    token_files: []
+    aliases: []
+    gated: true
+    noncommercial: true
+    patch_size: 224
+    feat_batch_size: 160
+    tile_input: 224px transform; usually extracted natively in TRIDENT.
+    extraction_mode: trident_all
+    downstream_route: mil_bag
+    notes: ""
+  - key: conch_v1
+    display_name: CONCH v1
+    repo_id: MahmoodLab/CONCH
+    feature_dim: 512
+    feature_dir_name: features_conch_v1
+    token_files: []
+    aliases:
+      - conch
+    gated: true
+    noncommercial: true
+    patch_size: 512
+    feat_batch_size: 48
+    tile_input: Native TRIDENT 512px encoder path.
+    extraction_mode: trident_all
+    downstream_route: mil_bag
+    notes: ""
+  - key: hoptimus0
+    display_name: H-optimus-0
+    repo_id: bioptimus/H-optimus-0
+    feature_dim: 1536
+    feature_dir_name: features_hoptimus0
+    token_files:
+      - H0-optimus0.hf_token
+      - .hf_token_hoptimus0
+    aliases:
+      - h_optimus_0
+      - h-optimus-0
+    gated: true
+    noncommercial: false
+    patch_size: 256
+    feat_batch_size: 96
+    tile_input: Shared 256px coords -> model-specific resize/crop to 224px at 0.5 mpp equivalent.
+    extraction_mode: trident_feat_only_shared_coords
+    downstream_route: mil_bag
+    notes: ""
+  - key: hoptimus1
+    display_name: H-optimus-1
+    repo_id: bioptimus/H-optimus-1
+    feature_dim: 1536
+    feature_dir_name: features_hoptimus1
+    token_files:
+      - H-optimus1.hf_token
+      - .hf_token_hoptimus1
+    aliases:
+      - h_optimus_1
+      - h-optimus-1
+    gated: true
+    noncommercial: true
+    patch_size: 256
+    feat_batch_size: 96
+    tile_input: Shared 256px coords -> model-specific resize/crop to 224px.
+    extraction_mode: trident_feat_only_shared_coords
+    downstream_route: mil_bag
+    notes: Gated academic model; institutional email approval required on Hugging Face.
+  - key: h0-mini
+    display_name: H0-mini
+    repo_id: bioptimus/H0-mini
+    feature_dim: 1536
+    feature_dir_name: features_h0-mini
+    token_files:
+      - h0-mini.hf_token
+      - .hf_token_h0-mini
+    aliases:
+      - h0_mini
+    gated: true
+    noncommercial: true
+    patch_size: 256
+    feat_batch_size: 96
+    tile_input: Shared 256px coords -> model-specific resize/crop to 224px (DINOv2 distill).
+    extraction_mode: trident_feat_only_shared_coords
+    downstream_route: mil_bag
+    notes: CLS+mean concatenation -> 1536 dim (via patched TRIDENT default); CC-BY-NC-ND 4.0.
+  - key: gigapath
+    display_name: Prov-GigaPath
+    repo_id: prov-gigapath/prov-gigapath
+    feature_dim: 1536
+    feature_dir_name: features_gigapath
+    token_files:
+      - prov-gigapath.hf_token
+      - .hf_token_gigapath
+    aliases:
+      - prov_gigapath
+      - prov-gigapath
+    gated: true
+    noncommercial: false
+    patch_size: 256
+    feat_batch_size: 96
+    tile_input: Shared 256px coords -> resize 256 / center-crop 224 for tile encoder.
+    extraction_mode: trident_feat_only_shared_coords
+    downstream_route: mil_bag+gigapath_slide
+    notes: Tile encoder feeds the standard MIL path; slide encoder lives in a separate experiment path.
+  - key: openmidnight
+    display_name: OpenMidnight
+    repo_id: SophontAI/OpenMidnight
+    feature_dim: 1536
+    feature_dir_name: features_openmidnight
+    token_files: []
+    aliases:
+      - open-midnight
+      - sophont-openmidnight
+    gated: false
+    noncommercial: false
+    patch_size: 256
+    feat_batch_size: 96
+    tile_input: Shared 256px coords -> model-specific resize/crop to 224px (DINOv2 ViT-G/14 backbone).
+    extraction_mode: trident_feat_only_shared_coords
+    downstream_route: mil_bag
+    notes: Public Hugging Face checkpoint (`teacher_checkpoint_load.pt`) loaded via TRIDENT OpenMidnight encoder.

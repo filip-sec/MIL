@@ -1,5 +1,7 @@
 # UNI2 (TRIDENT) vs Virchow2 feature extraction
 
+For the full encoder matrix, including `hoptimus0`, `hoptimus1`, and `gigapath`, see [ENCODER_SUPPORT.md](/Users/fs/Desktop/MIL/docs/ENCODER_SUPPORT.md). This note stays focused on the UNI2/Virchow2 comparison and the patch-size consequences of 256px vs 224px workflows.
+
 ## First-time access to Virchow2
 
 Virchow2 is a **gated model** on Hugging Face. You must request access before using it.
@@ -96,10 +98,10 @@ The HDF5 `coords` dataset usually has attributes, including:
 **A) TRIDENT with Virchow2 (if supported)**  
 Use the same chunked PBS workflow with Virchow2 encoder and 224 px patches:
 
-- Script: `scripts/trident_chunk_extract_virchow2.pbs`
-- Same as `trident_chunk_extract.pbs` but: `--patch_encoder virchow2 --patch_size 224 --mag 20`, and `JOB_DIR=.../panda_virchow2_grandqc_20x_224_ov0`.
-- Submit: `qsub -v CHUNK_CSV=/path/to/chunk.csv,HF_TOKEN="$(cat .hf_token)" scripts/trident_chunk_extract_virchow2.pbs`
+- Script: `scripts/trident_chunk_extract.pbs` with `ENCODER=virchow2` (or `trident_chunk_extract_feat_only.pbs` for feat-only runs).
+- Same as the canonical uni_v2 run but: `--patch_encoder virchow2 --patch_size 224 --mag 20`, and `JOB_DIR=.../panda_virchow2_grandqc_20x_224_ov0`.
+- Submit: `qsub -v CHUNK_CSV=/path/to/chunk.csv,ENCODER=virchow2 scripts/trident_chunk_extract.pbs` (HF token resolved via the registry — see `.cursor/rules/trident-extraction.mdc`).
 - This only works if the TRIDENT repo (`run_batch_of_slides.py`) supports `--patch_encoder virchow2`. If not, add a Virchow2 encoder in TRIDENT or use (B). In the notebook set `feat_dim=2560` for Virchow2.
 
-**B) Standalone script (no TRIDENT change)**  
-`scripts/extract_features_virchow2.py` extracts Virchow2 features from WSIs and writes `.h5` files (key `"features"`, shape `[N, 2560]` with `--embedding 2560`). Use a dedicated output dir and in the notebook set `feat_dir` to that path and `feat_dim=2560`.
+**B) Other extractors**  
+This repo does not ship a standalone Virchow2 extractor script; use path **A** via TRIDENT, or any external pipeline that writes per-slide `.h5` with key `"features"` (Virchow2 is typically 2560-dim). Point training at that directory and set `feat_dim=2560`.

@@ -1,0 +1,10 @@
+name: kaggle_predict
+pipeline: kaggle_predict
+defaults:
+  sample_submission: null
+  output: submission.csv
+  key: features
+  device: auto
+  max_patches: null
+  seed: 42
+  default_grade: 0

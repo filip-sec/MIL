@@ -29,7 +29,7 @@ description: Context and instructions for the PANDA WSI MIL project. Use when as
 | `data/splits/panda_5fold_stratified.csv` | 5-fold split: columns `image_id`, `fold` (0–4). Created by `scripts/make_panda_5fold_splits.py`. |
 | `data/trident_out/.../features_uni_v2/` | TRIDENT output: one `<slide_id>.h5` per slide; key `features` → array `[N_patches, feat_dim]`. Fallback: `data/trident_out_makeup_otsu/.../features_uni_v2/`. |
 | `notebooks/mil_workflow.ipynb` | Main workflow: setup, labels, OpenSlide inspection, splits, H5 loading, PyTorch MIL (Dataset, model, training). |
-| `scripts/` | PBS and helper scripts: `trident_chunk_extract.pbs`, `trident_makeup_otsu.pbs`, `make_panda_5fold_splits.py`, `run_makeup_interactive.sh`, etc. |
+| `scripts/` | CLIs and PBS: `run_training.py`, `mil_training.pbs`, `trident_chunk_extract*.pbs`, `make_panda_5fold_splits.py`, `plot_attention_map.py`, etc. |
 | `docs/` | TRIDENT_WORKING_CONFIG_AND_NEXT_STEPS.md, PANDA_WSI_MIL_PIPELINE_PLAN.md. |
 
 ---
@@ -153,7 +153,7 @@ Ak chceš len vymeniť architektúru (TransMIL, CLAM, …), ponechaj `feat_dir`,
 
 Keď už máš vyextrahované `.h5` (TRIDENT/Virchow2 alebo UNI2):
 
-1. **Skript:** `scripts/run_mil_training.py` – načíta `train.csv`, splits, vytvorí train/val podľa `--fold`, trénuje AttentionMIL, ukladá best checkpoint podľa val balanced accuracy do `checkpoints/mil_best.pt`.
+1. **Skript:** `scripts/run_training.py` – 5-fold CV, modely (`attention`, `gated`, `ordinal`, `clam`), uloženie checkpointov podľa val metriky (viď `--help`).
 
 2. **PBS job:** `scripts/mil_training.pbs` – na GPU node spustí tréning. Povinná premenná: **FEAT_DIR** (cesta k priečinku s `.h5`). Voliteľné: EPOCHS, FOLD, CONDA_ENV.
 

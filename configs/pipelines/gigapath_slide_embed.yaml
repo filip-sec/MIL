@@ -1,0 +1,9 @@
+name: gigapath_slide_embed
+pipeline: gigapath_slide_embed
+defaults:
+  slides_csv: null
+  coords_dir: null
+  device: auto
+  repo_root: .
+  overwrite: false
+  limit: null

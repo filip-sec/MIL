@@ -36,7 +36,7 @@ def main():
     print(f"Checkpoint: {args.ckpt}")
     print("Keys:", list(ckpt.keys()))
 
-    for k in ["epoch", "feat_dim", "model_name", "hidden", "top_k"]:
+    for k in ["epoch", "feat_dim", "encoder_name", "config_name", "config_path", "model_name", "hidden", "top_k"]:
         if k in ckpt:
             print(f"  {k}: {ckpt[k]}")
 

@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 508" width="1100" height="508">
+  <defs>
+    <style type="text/css">
+      <![CDATA[
+        .title { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 17px; font-weight: 700; fill: #0d1117; }
+        .subtitle { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 10.5px; fill: #444; text-anchor: middle; }
+        .label { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 11px; fill: #24292f; }
+        .hint { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 9px; fill: #57606a; }
+        .training { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 8.5px; fill: #5c6570; font-style: italic; text-decoration: none; }
+        .ordinal-cap { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 9px; font-weight: 600; fill: #374151; }
+        .box-off { fill: #ddf4ff; stroke: #0969da; stroke-width: 1.3; }
+        .box-on { fill: #dafbe1; stroke: #1a7f37; stroke-width: 1.3; }
+        .box-neutral { fill: #f6f8fa; stroke: #24292f; stroke-width: 1.2; }
+        .box-impl { fill: #fafbfc; stroke: #d8dee4; stroke-width: 1; }
+        .arrow { stroke: #24292f; stroke-width: 1.4; fill: none; marker-end: url(#m); }
+        .arrow-muted { stroke: #57606a; stroke-width: 1.1; fill: none; stroke-dasharray: 5 4; marker-end: url(#m2); }
+        .bracket-dash { stroke: #57606a; stroke-width: 1.1; fill: none; stroke-dasharray: 5 4; marker-end: none; }
+        .branch-muted { stroke: #6e7781; stroke-width: 1; fill: none; stroke-dasharray: 4 3; marker-end: none; }
+      ]]>
+    </style>
+    <marker id="m" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#24292f"/>
+    </marker>
+    <marker id="m2" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto">
+      <polygon points="0 0, 7 2.5, 0 5" fill="#57606a"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1100" height="508" fill="#ffffff"/>
+
+  <text x="550" y="32" class="title" text-anchor="middle">PANDA ISUP &#8212; two-stage feature extraction and MIL classification pipeline</text>
+  <text x="550" y="50" class="subtitle">Offline frozen patch embeddings &#183; Trainable bag-level MIL head</text>
+
+  <!-- Stage 1: precomputation -->
+  <rect x="32" y="72" width="120" height="56" class="box-off" rx="8"/>
+  <text x="92" y="96" class="label" text-anchor="middle">WSI</text>
+  <text x="92" y="110" class="hint" text-anchor="middle">PANDA</text>
+
+  <line x1="152" y1="100" x2="188" y2="100" class="arrow"/>
+
+  <rect x="188" y="72" width="120" height="56" class="box-off" rx="8"/>
+  <text x="248" y="96" class="label" text-anchor="middle">Patches</text>
+  <text x="248" y="110" class="hint" text-anchor="middle">coords L0</text>
+
+  <line x1="308" y1="100" x2="344" y2="100" class="arrow"/>
+
+  <rect x="344" y="66" width="190" height="68" class="box-off" rx="8"/>
+  <text x="439" y="88" class="label" text-anchor="middle">Frozen encoder</text>
+  <text x="439" y="104" class="hint" text-anchor="middle">e.g. Virchow2 / UNI (foundation model)</text>
+  <text x="439" y="120" class="hint" text-anchor="middle">patch embeddings &#183; not trained here</text>
+
+  <line x1="534" y1="100" x2="568" y2="100" class="arrow"/>
+
+  <rect x="568" y="72" width="150" height="56" class="box-off" rx="8"/>
+  <text x="643" y="94" class="label" text-anchor="middle">slide_id.h5</text>
+  <text x="643" y="108" class="hint" text-anchor="middle">bag features [N,D]</text>
+  <text x="643" y="120" class="hint" text-anchor="middle">coords (optional)</text>
+
+  <line x1="718" y1="100" x2="758" y2="100" class="arrow-muted"/>
+
+  <!-- Demoted: implementation / IO, not a model block -->
+  <rect x="758" y="76" width="210" height="48" class="box-impl" rx="6"/>
+  <text x="863" y="96" class="label" text-anchor="middle" style="font-size:10px;fill:#444;">Optional H5 bag cache for training</text>
+  <text x="863" y="112" class="hint" text-anchor="middle">variable bag size; caps at train time</text>
+
+  <!-- Stage 2: MIL head -->
+  <rect x="80" y="192" width="140" height="50" class="box-on" rx="8"/>
+  <text x="150" y="218" class="label" text-anchor="middle">Instance projector</text>
+  <text x="150" y="232" class="hint" text-anchor="middle">Linear + norm + act</text>
+
+  <line x1="220" y1="217" x2="252" y2="217" class="arrow"/>
+
+  <rect x="252" y="188" width="168" height="58" class="box-on" rx="8"/>
+  <text x="336" y="214" class="label" text-anchor="middle">Instance attention</text>
+  <text x="336" y="230" class="hint" text-anchor="middle">gated or single MLP</text>
+  <text x="336" y="244" class="hint" text-anchor="middle">masked softmax &#8594; A [B,N]</text>
+
+  <!-- top-k tick: no arrowhead; label sits above stub so Ordinal caption (wide) can sit lower without collision -->
+  <path d="M 418 250 L 455 268" class="branch-muted"/>
+  <text x="456" y="246" class="hint" text-anchor="start" style="font-size:8px">top-k by A</text>
+
+  <line x1="420" y1="217" x2="468" y2="217" class="arrow"/>
+
+  <rect x="468" y="192" width="148" height="50" class="box-on" rx="8"/>
+  <text x="542" y="212" class="label" text-anchor="middle">Attention-weighted</text>
+  <text x="542" y="228" class="label" text-anchor="middle">bag pooling</text>
+
+  <line x1="616" y1="217" x2="648" y2="217" class="arrow"/>
+
+  <rect x="648" y="192" width="124" height="50" class="box-on" rx="8"/>
+  <text x="710" y="216" class="label" text-anchor="middle">Bag classifier</text>
+  <text x="710" y="232" class="hint" text-anchor="middle">FC &#8594; logits</text>
+
+  <line x1="772" y1="217" x2="804" y2="217" class="arrow"/>
+
+  <rect x="804" y="192" width="228" height="46" class="box-neutral" rx="8"/>
+  <text x="918" y="212" class="label" text-anchor="middle">ISUP logits / grade 0&#8211;5</text>
+  <text x="918" y="228" class="hint" text-anchor="middle">class probabilities or predicted grade at inference</text>
+
+  <!-- Taller Ordinal band + bracket without end markers; training caption clearly under the bottom rail -->
+  <path d="M 395 258 L 395 298 L 1000 298 L 1000 258" class="bracket-dash"/>
+  <text x="600" y="276" class="ordinal-cap" text-anchor="middle">OrdinalMIL: top-k evidence fusion (same A, h) &#8594; concat with global bag</text>
+  <text x="600" y="292" class="hint" text-anchor="middle">dual prediction heads (ordinal thresholds + CE)</text>
+
+  <text x="600" y="318" class="training" text-anchor="middle">Training objective only: CE and/or ordinal+CE</text>
+
+  <!-- Variant registry -->
+  <rect x="48" y="344" width="1004" height="152" class="box-neutral" rx="12"/>
+
+  <rect x="68" y="376" width="230" height="92" class="box-on" rx="6" fill="#ffffff" stroke="#1a7f37"/>
+  <text x="183" y="398" class="label" text-anchor="middle">attention</text>
+  <text x="183" y="414" class="hint" text-anchor="middle">AttentionMIL &#183; Ilse-style</text>
+  <text x="183" y="430" class="hint" text-anchor="middle">tanh MLP &#8594; softmax attention</text>
+  <text x="183" y="446" class="hint" text-anchor="middle">feat_dim &#8594; H (e.g. 128)</text>
+
+  <rect x="318" y="376" width="230" height="92" class="box-on" rx="6" fill="#ffffff" stroke="#1a7f37"/>
+  <text x="433" y="398" class="label" text-anchor="middle">gated</text>
+  <text x="433" y="414" class="hint" text-anchor="middle">GatedAttentionMIL</text>
+  <text x="433" y="430" class="hint" text-anchor="middle">LN + GELU &#183; V/U branches</text>
+  <text x="433" y="446" class="hint" text-anchor="middle">H&#8776;256, attn hidden 128</text>
+
+  <rect x="568" y="376" width="230" height="92" class="box-on" rx="6" fill="#ffffff" stroke="#1a7f37"/>
+  <text x="683" y="398" class="label" text-anchor="middle">ordinal</text>
+  <text x="683" y="414" class="hint" text-anchor="middle">global attention bag + top-k branch</text>
+  <text x="683" y="430" class="hint" text-anchor="middle">fused representation</text>
+  <text x="683" y="446" class="hint" text-anchor="middle">ordinal + CE heads</text>
+
+  <rect x="818" y="376" width="230" height="92" class="box-on" rx="6" fill="#ffffff" stroke="#1a7f37"/>
+  <text x="933" y="398" class="label" text-anchor="middle">CLAM-SB</text>
+  <text x="933" y="414" class="hint" text-anchor="middle">Lu et al. &#183; gated attention bag classifier</text>
+  <text x="933" y="430" class="hint" text-anchor="middle">auxiliary instance k-sample supervision</text>
+  <text x="933" y="446" class="hint" text-anchor="middle">(train only; not used at inference)</text>
+</svg>
