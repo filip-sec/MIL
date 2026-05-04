@@ -10,7 +10,8 @@ trap 'clean_scratch' TERM EXIT
 CHUNK_CSV="${CHUNK_CSV:?CHUNK_CSV not set}"
 ENCODER="${ENCODER:-uni_v2}"
 JOB_DIR="${JOB_DIR:-/storage/brno2/home/filipsec/MIL/data/trident_out/panda_uni_v2_grandqc_20x_256_ov0}"
-WSI_DIR="/storage/brno2/home/filipsec/MIL/data/raw/train_images"
+WSI_DIR="${WSI_DIR:-/storage/brno2/home/filipsec/MIL/data/raw/train_images}"
+WSI_EXT="${WSI_EXT:-.tiff}"
 REPO_DIR="/storage/brno2/home/filipsec/repos/trident"
 CONDA_ENV="/storage/brno2/home/filipsec/.conda/envs/trident"
 BRNO2_HOME="/storage/brno2/home/filipsec"
@@ -73,12 +74,12 @@ echo "Original WSI_DIR=$WSI_DIR"
 echo "SCRATCHDIR=$SCRATCHDIR"
 
 mkdir -p "$SCRATCHDIR/wsis"
-# CHUNK_CSV môže obsahovať buď image_id, alebo už celé meno s .tif/.tiff
+# CHUNK_CSV may contain either bare IDs or full filenames with extension.
 awk -F',' 'NR>1 {print $1}' "$CHUNK_CSV" | while read -r name; do
   base="$name"
-  # ak riadok nekončí na .tif/.tiff, pridaj .tiff
-  if [[ "$base" != *.tif && "$base" != *.tiff ]]; then
-    base="${base}.tiff"
+  # Append the configured extension only when no extension is present.
+  if [[ "$base" != *.* ]]; then
+    base="${base}${WSI_EXT}"
   fi
   src="${WSI_DIR}/${base}"
   if [[ -f "$src" ]]; then
@@ -98,7 +99,7 @@ python run_batch_of_slides.py \
   --wsi_dir "$WSI_DIR" \
   --job_dir "$JOB_DIR" \
   --custom_list_of_wsis "$CHUNK_CSV" \
-  --wsi_ext .tiff \
+  --wsi_ext "$WSI_EXT" \
   --segmenter grandqc \
   --patch_encoder "$ENCODER" \
   --mag 20 \
