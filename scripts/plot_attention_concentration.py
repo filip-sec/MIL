@@ -13,6 +13,7 @@ It supports two input modes:
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from pathlib import Path
 
@@ -53,6 +54,15 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=Path("results/figures/attention_concentration"),
         help="Directory to save per-slide concentration plots.",
+    )
+    ap.add_argument(
+        "--output-tag",
+        type=str,
+        default=None,
+        help=(
+            "Optional suffix to include in output filenames/summary CSV "
+            "(default: inferred from checkpoint dir or attention dir)."
+        ),
     )
     ap.add_argument(
         "--summary-csv",
@@ -243,6 +253,23 @@ def resolve_slide_ids(args: argparse.Namespace) -> list[str]:
     return [str(x).strip() for x in df["slide_id"].tolist() if str(x).strip()]
 
 
+def _sanitize_tag(tag: str) -> str:
+    tag = tag.strip()
+    tag = re.sub(r"[^A-Za-z0-9._-]+", "-", tag)
+    tag = re.sub(r"-{2,}", "-", tag).strip("-")
+    return tag or "run"
+
+
+def resolve_output_tag(args: argparse.Namespace) -> str:
+    if args.output_tag:
+        return _sanitize_tag(args.output_tag)
+    if args.checkpoint is not None:
+        return _sanitize_tag(args.checkpoint.parent.name)
+    if args.attention_dir is not None:
+        return _sanitize_tag(args.attention_dir.name)
+    return "run"
+
+
 def main() -> None:
     args = parse_args()
     dev = resolve_device(args.device)
@@ -251,8 +278,9 @@ def main() -> None:
         raise SystemExit("Provide exactly one of --checkpoint or --attention-dir.")
 
     slide_ids = resolve_slide_ids(args)
+    output_tag = resolve_output_tag(args)
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    summary_csv = args.summary_csv or (args.output_dir / "attention_concentration_summary.csv")
+    summary_csv = args.summary_csv or (args.output_dir / f"attention_concentration_summary_{output_tag}.csv")
 
     model = None
     ckpt_feat_dim = None
@@ -270,7 +298,7 @@ def main() -> None:
             checkpoint_feat_dim=ckpt_feat_dim,
             device=dev,
         )
-        out_path = args.output_dir / f"{slide_id}_attention_concentration.png"
+        out_path = args.output_dir / f"{slide_id}_{output_tag}_attention_concentration.png"
         row = make_concentration_plot(attn, slide_id, out_path, args.dpi)
         rows.append(row)
         print(
