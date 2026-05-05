@@ -282,10 +282,19 @@ def main() -> None:
 
     if args.labels_csv is not None:
         labels_df = pd.read_csv(args.labels_csv)
-        required_cols = {"slide_id", "isup_grade"}
-        if not required_cols.issubset(labels_df.columns):
-            raise SystemExit(f"{args.labels_csv}: missing required columns {sorted(required_cols)}")
-        labels_df = labels_df[["slide_id", "isup_grade"]].copy()
+        id_col = None
+        for candidate in ("slide_id", "image_id"):
+            if candidate in labels_df.columns:
+                id_col = candidate
+                break
+        if id_col is None or "isup_grade" not in labels_df.columns:
+            raise SystemExit(
+                f"{args.labels_csv}: expected columns ['isup_grade' + one of slide_id/image_id], "
+                f"got {list(labels_df.columns)}"
+            )
+
+        labels_df = labels_df[[id_col, "isup_grade"]].copy()
+        labels_df = labels_df.rename(columns={id_col: "slide_id"})
         labels_df["slide_id"] = labels_df["slide_id"].astype(str)
         labels_df["isup_grade"] = labels_df["isup_grade"].astype(int)
         out_df = out_df.merge(labels_df, on="slide_id", how="left")
